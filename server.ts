@@ -15,20 +15,24 @@ const __dirname = path.dirname(__filename);
 
 const CONFIG_FILE = path.resolve(__dirname, '.mongodb-runtime.json');
 
+// Connection string bawaan langsung (hardcoded default agar selalu terhubung otomatis tanpa setting manual)
+const DEFAULT_MONGO_URI = 'mongodb+srv://blackjack719355_db_user:Sehat719355@cluster0.iercbv8.mongodb.net/absensi_on_db?retryWrites=true&w=majority';
+const DEFAULT_DB_NAME = 'absensi_on_db';
+
 interface MongoRuntimeConfig {
   uri: string;
   databaseName: string;
 }
 
-// Helper to load runtime config if previously saved via UI
+// Helper to load runtime config if previously saved via UI or fallback to embedded default
 function loadRuntimeConfig(): MongoRuntimeConfig {
-  const envUri = process.env.MONGODB_URI || '';
-  const envDb = process.env.MONGODB_DB_NAME || 'absensi_on_db';
+  const envUri = process.env.MONGODB_URI || DEFAULT_MONGO_URI;
+  const envDb = process.env.MONGODB_DB_NAME || DEFAULT_DB_NAME;
 
   if (fs.existsSync(CONFIG_FILE)) {
     try {
       const data = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
-      if (data.uri) {
+      if (data.uri && !data.uri.includes('username:password') && !data.uri.includes('cluster0.xxxxx')) {
         return {
           uri: data.uri,
           databaseName: data.databaseName || envDb,
@@ -152,17 +156,54 @@ async function connectToMongo(uri: string, dbName: string): Promise<{ success: b
   }
 }
 
-// Try auto-connect on boot if config exists
-const initialConfig = loadRuntimeConfig();
-if (initialConfig.uri && !initialConfig.uri.includes('username:password') && !initialConfig.uri.includes('cluster0.xxxxx')) {
-  connectToMongo(initialConfig.uri, initialConfig.databaseName).catch(() => {});
+// Auto-connect to MongoDB immediately on startup (selalu terkoneksi langsung tanpa perlu setting manual)
+export async function connectToMongoDB() {
+  const config = loadRuntimeConfig();
+  console.log('[MongoDB] Menghubungkan langsung ke MongoDB Atlas...');
+  const res = await connectToMongo(config.uri || DEFAULT_MONGO_URI, config.databaseName || DEFAULT_DB_NAME);
+  if (res.success) {
+    console.log('You successfully connected to MongoDB!');
+  }
+  return mongoClient;
 }
+
+// Call this only when your application terminates
+export async function disconnectFromMongoDB() {
+  if (mongoClient) {
+    try {
+      await mongoClient.close();
+      console.log('You successfully disconnected from MongoDB!');
+    } catch (err) {
+      console.dir(err);
+    }
+    mongoClient = null;
+    currentDb = null;
+  }
+}
+
+// Inisialisasi koneksi langsung saat server boot
+connectToMongoDB().catch((err) => {
+  console.warn('[MongoDB] Percobaan koneksi awal:', err);
+});
+
+process.on('SIGINT', async () => {
+  await disconnectFromMongoDB();
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  await disconnectFromMongoDB();
+  process.exit(0);
+});
 
 async function startServer() {
   const app = express();
-  const isDev = process.env.NODE_ENV === 'development';
+  const isProd = process.env.NODE_ENV === 'production';
+  const isDev = !isProd;
+  // Di dev container AI Studio (Nginx di 8080 mem-proxy ke 3000), dev server jalan di 3000.
+  // Di Cloud Run (mode produksi), gunakan process.env.PORT yang ditentukan sistem.
   const PORT = parseInt(
-    (isDev ? (process.env.DEFAULT_APP_PORT || '3000') : process.env.PORT) || '3000',
+    (isProd ? process.env.PORT : (process.env.DEV_PORT || '3000')) || '3000',
     10
   );
 

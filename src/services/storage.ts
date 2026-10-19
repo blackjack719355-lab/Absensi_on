@@ -301,8 +301,9 @@ class StorageRepository {
   private listeners: Array<() => void> = [];
   private mongoConfig: MongoConfig = {
     databaseName: 'absensi_on_db',
-    uri: '',
-    status: 'offline_sync',
+    uri: 'mongodb+srv://blackjack719355_db_user:••••••••@cluster0.iercbv8.mongodb.net/absensi_on_db?retryWrites=true&w=majority',
+    uriMasked: 'mongodb+srv://blackjack719355_db_user:••••••••@cluster0.iercbv8.mongodb.net/absensi_on_db?retryWrites=true&w=majority',
+    status: 'connected',
     lastSyncedAt: new Date().toISOString(),
     error: null,
   };
