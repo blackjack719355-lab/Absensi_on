@@ -34,6 +34,10 @@ export default function App() {
 
   useEffect(() => {
     loadData();
+    const unsubscribe = storage.subscribe(() => {
+      loadData();
+    });
+    return unsubscribe;
   }, []);
 
   return (

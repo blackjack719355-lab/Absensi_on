@@ -45,12 +45,20 @@ export const Header: React.FC<HeaderProps> = ({ mongoConfig, onOpenMongoModal })
             {/* MongoDB Online Indicator Button */}
             <button
               onClick={onOpenMongoModal}
-              title="Status Database MongoDB Online"
-              className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg border border-emerald-200 bg-emerald-50/70 text-emerald-800 hover:bg-emerald-100/70 transition-colors shrink-0"
+              title={mongoConfig.status === 'connected' ? 'Database MongoDB Atlas Terhubung' : 'MongoDB Belum Terhubung (Klik untuk Menghubungkan)'}
+              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-colors shrink-0 shadow-2xs cursor-pointer ${
+                mongoConfig.status === 'connected'
+                  ? 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                  : 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100'
+              }`}
             >
-              <Database className="w-3.5 h-3.5 text-emerald-700" />
-              <span className="hidden sm:inline">MongoDB Online</span>
-              <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+              <Database className={`w-3.5 h-3.5 ${mongoConfig.status === 'connected' ? 'text-emerald-700' : 'text-amber-700'}`} />
+              <span className="hidden sm:inline">
+                {mongoConfig.status === 'connected' ? 'MongoDB Terhubung' : 'Hubungkan MongoDB'}
+              </span>
+              <span className={`inline-block w-2 h-2 rounded-full ${
+                mongoConfig.status === 'connected' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
+              }`}></span>
             </button>
           </div>
         </div>

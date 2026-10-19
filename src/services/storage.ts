@@ -13,8 +13,16 @@ const STORAGE_KEY_CONFIG = 'absensi_on_mongo_config_v2';
 export interface MongoConfig {
   databaseName: string;
   uri: string;
+  uriMasked?: string;
   status: 'connected' | 'offline_sync';
   lastSyncedAt: string;
+  error?: string | null;
+  counts?: {
+    teachers: number;
+    schedules: number;
+    holidays: number;
+    attendances: number;
+  };
 }
 
 export function getLocalDateString(d: Date = new Date()): string {
@@ -290,15 +298,30 @@ class StorageRepository {
   private schedules: TeacherScheduleRow[] = [];
   private holidays: HolidayItem[] = [];
   private attendances: DailyAttendanceRecord[] = [];
+  private listeners: Array<() => void> = [];
   private mongoConfig: MongoConfig = {
     databaseName: 'absensi_on_db',
-    uri: 'mongodb+srv://admin:******@cluster0.absensi-on.mongodb.net/absensi_on_db?retryWrites=true&w=majority',
-    status: 'connected',
+    uri: '',
+    status: 'offline_sync',
     lastSyncedAt: new Date().toISOString(),
+    error: null,
   };
 
   constructor() {
     this.init();
+  }
+
+  public subscribe(listener: () => void): () => void {
+    this.listeners.push(listener);
+    return () => {
+      this.listeners = this.listeners.filter(l => l !== listener);
+    };
+  }
+
+  private notifyListeners() {
+    this.listeners.forEach(fn => {
+      try { fn(); } catch (err) { console.error('Storage listener error:', err); }
+    });
   }
 
   private init() {
@@ -337,7 +360,7 @@ class StorageRepository {
 
       const savedConfig = localStorage.getItem(STORAGE_KEY_CONFIG);
       if (savedConfig) {
-        this.mongoConfig = JSON.parse(savedConfig);
+        this.mongoConfig = { ...this.mongoConfig, ...JSON.parse(savedConfig) };
       }
     } catch (e) {
       this.teachers = INITIAL_TEACHERS;
@@ -347,6 +370,143 @@ class StorageRepository {
     }
 
     this.syncAutomaticWeeklyHolidays();
+    // Sinkronisasi otomatis dengan backend MongoDB
+    this.syncWithBackend();
+  }
+
+  // Cek status koneksi MongoDB di backend dan ambil data jika terhubung
+  public async syncWithBackend() {
+    try {
+      const res = await fetch('/api/db/status');
+      if (!res.ok) return;
+      const statusData = await res.json();
+
+      this.mongoConfig = {
+        databaseName: statusData.databaseName || this.mongoConfig.databaseName,
+        uri: statusData.uriMasked || this.mongoConfig.uri,
+        uriMasked: statusData.uriMasked,
+        status: statusData.connected ? 'connected' : 'offline_sync',
+        lastSyncedAt: new Date().toISOString(),
+        error: statusData.error || null,
+        counts: statusData.counts,
+      };
+      this.saveConfigLocally(this.mongoConfig);
+      this.notifyListeners();
+
+      if (statusData.connected) {
+        const totalDocs = (statusData.counts?.teachers || 0) + 
+                          (statusData.counts?.schedules || 0) + 
+                          (statusData.counts?.holidays || 0);
+
+        if (totalDocs === 0) {
+          // Jika database MongoDB masih kosong melompong baru dibuat,
+          // otomatis kirimkan data awal lokal ke MongoDB
+          await this.pushAllToMongo();
+        } else {
+          // Ambil data terbaru dari MongoDB ke memori lokal
+          const dataRes = await fetch('/api/data');
+          if (dataRes.ok) {
+            const result = await dataRes.json();
+            if (result.data) {
+              if (Array.isArray(result.data.teachers) && result.data.teachers.length > 0) {
+                this.teachers = result.data.teachers;
+                this.saveTeachers();
+              }
+              if (Array.isArray(result.data.schedules) && result.data.schedules.length > 0) {
+                this.schedules = result.data.schedules;
+                this.saveSchedules();
+              }
+              if (Array.isArray(result.data.holidays) && result.data.holidays.length > 0) {
+                this.holidays = result.data.holidays;
+                this.saveHolidays();
+              }
+              if (Array.isArray(result.data.attendances) && result.data.attendances.length > 0) {
+                this.attendances = result.data.attendances;
+                this.saveAttendances();
+              }
+              this.syncAutomaticWeeklyHolidays();
+              this.notifyListeners();
+            }
+          }
+        }
+      }
+    } catch (err) {
+      // Backend mungkin belum siap atau mode offline
+      console.log('[Storage] Backend status check offline, menggunakan data lokal.');
+    }
+  }
+
+  // Hubungkan ke MongoDB dengan URI yang diinput pengguna
+  public async connectMongo(uri: string, databaseName: string): Promise<{ success: boolean; message?: string; error?: string }> {
+    try {
+      const res = await fetch('/api/db/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uri, databaseName }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        await this.syncWithBackend();
+        return { success: true, message: data.message };
+      } else {
+        return { success: false, error: data.error || 'Gagal terhubung ke MongoDB' };
+      }
+    } catch (e: any) {
+      return { success: false, error: e.message || 'Gagal menghubungi server backend' };
+    }
+  }
+
+  // Putuskan koneksi MongoDB
+  public async disconnectMongo(): Promise<{ success: boolean }> {
+    try {
+      await fetch('/api/db/disconnect', { method: 'POST' });
+    } catch {}
+    this.mongoConfig = {
+      ...this.mongoConfig,
+      status: 'offline_sync',
+      error: null,
+    };
+    this.saveConfigLocally(this.mongoConfig);
+    this.notifyListeners();
+    return { success: true };
+  }
+
+  // Kirim seluruh dataset lokal saat ini ke MongoDB
+  public async pushAllToMongo(): Promise<{ success: boolean; error?: string }> {
+    try {
+      const res = await fetch('/api/data/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          teachers: this.teachers,
+          schedules: this.schedules,
+          holidays: this.holidays,
+          attendances: this.attendances,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        await this.syncWithBackend();
+        return { success: true };
+      }
+      return { success: false, error: data.error };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  }
+
+  // Helper background POST ke API tanpa memblokir UI
+  private apiPost(endpoint: string, body: any) {
+    fetch(`/api${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).catch(() => {});
+  }
+
+  // Helper background DELETE ke API tanpa memblokir UI
+  private apiDelete(endpoint: string) {
+    fetch(`/api${endpoint}`, { method: 'DELETE' }).catch(() => {});
   }
 
   private saveTeachers() {
@@ -371,13 +531,18 @@ class StorageRepository {
     try {
       localStorage.setItem(STORAGE_KEY_ATTENDANCE, JSON.stringify(this.attendances));
     } catch {}
+    this.apiPost('/attendance/batch', { records: this.attendances });
+  }
+
+  private saveConfigLocally(config: Partial<MongoConfig>) {
+    try {
+      localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(config));
+    } catch {}
   }
 
   public saveConfig(config: Partial<MongoConfig>) {
     this.mongoConfig = { ...this.mongoConfig, ...config };
-    try {
-      localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(this.mongoConfig));
-    } catch {}
+    this.saveConfigLocally(this.mongoConfig);
   }
 
   public getConfig(): MongoConfig {
@@ -514,6 +679,7 @@ class StorageRepository {
     };
     this.teachers.push(newTeacher);
     this.saveTeachers();
+    this.apiPost('/teachers', newTeacher);
     return newTeacher;
   }
 
@@ -544,6 +710,7 @@ class StorageRepository {
     this.schedules.push(newSch);
     this.saveSchedules();
     this.syncAutomaticWeeklyHolidays();
+    this.apiPost('/schedules', newSch);
     return newSch;
   }
 
@@ -553,15 +720,20 @@ class StorageRepository {
     this.schedules[idx] = { ...this.schedules[idx], ...updates };
     this.saveSchedules();
     this.syncAutomaticWeeklyHolidays();
+    this.apiPost('/schedules', this.schedules[idx]);
     return this.schedules[idx];
   }
 
   public deleteSchedule(id: string): boolean {
     const idx = this.schedules.findIndex(s => s.id === id);
     if (idx === -1) return false;
+    const removed = this.schedules[idx];
     this.schedules.splice(idx, 1);
     this.saveSchedules();
     this.syncAutomaticWeeklyHolidays();
+    if (removed?.teacherId) {
+      this.apiDelete(`/teachers/${removed.teacherId}`);
+    }
     return true;
   }
 
@@ -585,6 +757,7 @@ class StorageRepository {
 
     this.saveSchedules();
     this.syncAutomaticWeeklyHolidays();
+    this.pushAllToMongo();
   }
 
   // HOLIDAYS
@@ -607,6 +780,7 @@ class StorageRepository {
     };
     this.holidays.push(newHoliday);
     this.saveHolidays();
+    this.apiPost('/holidays', newHoliday);
     return newHoliday;
   }
 
@@ -627,6 +801,7 @@ class StorageRepository {
       sessions,
     };
     this.saveHolidays();
+    this.apiPost('/holidays', this.holidays[idx]);
     return this.holidays[idx];
   }
 
@@ -635,6 +810,7 @@ class StorageRepository {
     if (idx === -1) return false;
     this.holidays.splice(idx, 1);
     this.saveHolidays();
+    this.apiDelete(`/holidays/${id}`);
     return true;
   }
 
