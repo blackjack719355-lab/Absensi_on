@@ -1,10 +1,12 @@
-import express, { Request, Response } from 'express';
+import express from 'express';
+import type { Request, Response } from 'express';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import dotenv from 'dotenv';
-import { MongoClient, ServerApiVersion, Db } from 'mongodb';
+import { MongoClient, ServerApiVersion } from 'mongodb';
+import type { Db } from 'mongodb';
 
 // Load .env if present
 dotenv.config();

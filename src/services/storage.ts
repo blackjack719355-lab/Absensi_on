@@ -379,7 +379,13 @@ class StorageRepository {
     try {
       const res = await fetch('/api/db/status');
       if (!res.ok) return;
-      const statusData = await res.json();
+      const text = await res.text();
+      let statusData: any;
+      try {
+        statusData = JSON.parse(text);
+      } catch {
+        return;
+      }
 
       this.mongoConfig = {
         databaseName: statusData.databaseName || this.mongoConfig.databaseName,
@@ -406,8 +412,14 @@ class StorageRepository {
           // Ambil data terbaru dari MongoDB ke memori lokal
           const dataRes = await fetch('/api/data');
           if (dataRes.ok) {
-            const result = await dataRes.json();
-            if (result.data) {
+            const dataText = await dataRes.text();
+            let result: any = null;
+            try {
+              result = JSON.parse(dataText);
+            } catch {
+              result = null;
+            }
+            if (result && result.data) {
               if (Array.isArray(result.data.teachers) && result.data.teachers.length > 0) {
                 this.teachers = result.data.teachers;
                 this.saveTeachers();
@@ -444,7 +456,23 @@ class StorageRepository {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ uri, databaseName }),
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch (parseErr) {
+        if (!res.ok) {
+          return {
+            success: false,
+            error: `Server backend merespons kode status ${res.status} (${res.statusText || 'Gagal memproses'}). Kemungkinan server sedang memulai ulang. Silakan coba beberapa detik lagi.`,
+          };
+        }
+        return {
+          success: false,
+          error: 'Respons dari server bukan format JSON yang valid.',
+        };
+      }
+
       if (res.ok && data.success) {
         await this.syncWithBackend();
         return { success: true, message: data.message };
@@ -484,7 +512,13 @@ class StorageRepository {
           attendances: this.attendances,
         }),
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        return { success: false, error: `Respons server tidak valid (Status ${res.status})` };
+      }
       if (res.ok && data.success) {
         await this.syncWithBackend();
         return { success: true };
