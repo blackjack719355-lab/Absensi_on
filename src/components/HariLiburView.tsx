@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
-import { CalendarOff, Plus, Trash2, Edit3, X, AlertCircle, CheckCircle2, Calendar, ShieldAlert } from 'lucide-react';
-import { HolidayItem, HolidayScope } from '../types';
-import { storage } from '../services/storage';
+import { 
+  CalendarOff, Plus, Trash2, Edit3, X, AlertCircle, CheckCircle2, 
+  Calendar, BookOpen, Sparkles, Sun, Sunset, Check, Layers
+} from 'lucide-react';
+import { HolidayItem, HolidayScope, HolidaySessionType } from '../types';
+import { storage, getHolidaySessions, formatHolidayScopeTitle } from '../services/storage';
 
 interface HariLiburViewProps {
   holidays: HolidayItem[];
@@ -21,7 +24,7 @@ export const HariLiburView: React.FC<HariLiburViewProps> = ({
     type: 'single' as 'single' | 'range',
     startDate: new Date().toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0],
-    scope: 'Untuk Semuanya' as HolidayScope,
+    selectedSessions: ['mengajar', 'tahfidz_pagi', 'tahfidz_sore'] as HolidaySessionType[],
     description: '',
   });
 
@@ -35,7 +38,7 @@ export const HariLiburView: React.FC<HariLiburViewProps> = ({
       type: 'single',
       startDate: new Date().toISOString().split('T')[0],
       endDate: new Date().toISOString().split('T')[0],
-      scope: 'Untuk Semuanya',
+      selectedSessions: ['mengajar', 'tahfidz_pagi', 'tahfidz_sore'],
       description: '',
     });
     setIsModalOpen(true);
@@ -43,15 +46,35 @@ export const HariLiburView: React.FC<HariLiburViewProps> = ({
 
   const handleOpenEditModal = (h: HolidayItem) => {
     setEditingHoliday(h);
+    const sessions = getHolidaySessions(h);
     setFormData({
       title: h.title,
       type: h.type === 'range' ? 'range' : 'single',
       startDate: h.startDate,
       endDate: h.endDate || h.startDate,
-      scope: h.scope,
+      selectedSessions: sessions,
       description: h.description || '',
     });
     setIsModalOpen(true);
+  };
+
+  const handleToggleSession = (session: HolidaySessionType) => {
+    setFormData(prev => {
+      const exists = prev.selectedSessions.includes(session);
+      let updated: HolidaySessionType[];
+      if (exists) {
+        // Jangan biarkan kosong sama sekali
+        if (prev.selectedSessions.length === 1) return prev;
+        updated = prev.selectedSessions.filter(s => s !== session);
+      } else {
+        updated = [...prev.selectedSessions, session];
+      }
+      return { ...prev, selectedSessions: updated };
+    });
+  };
+
+  const handleApplyPreset = (sessions: HolidaySessionType[]) => {
+    setFormData(prev => ({ ...prev, selectedSessions: sessions }));
   };
 
   const handleSaveHoliday = (e: React.FormEvent) => {
@@ -60,9 +83,16 @@ export const HariLiburView: React.FC<HariLiburViewProps> = ({
       return;
     }
 
+    if (formData.selectedSessions.length === 0) {
+      alert('Pilih minimal satu sesi yang diliburkan!');
+      return;
+    }
+
     if (formData.type === 'range' && formData.endDate < formData.startDate) {
       return;
     }
+
+    const scope = formatHolidayScopeTitle(formData.selectedSessions);
 
     if (editingHoliday) {
       storage.updateHoliday(editingHoliday.id, {
@@ -70,7 +100,8 @@ export const HariLiburView: React.FC<HariLiburViewProps> = ({
         type: formData.type,
         startDate: formData.startDate,
         endDate: formData.type === 'range' ? formData.endDate : undefined,
-        scope: formData.scope,
+        scope,
+        sessions: formData.selectedSessions,
         description: formData.description,
       });
     } else {
@@ -79,7 +110,8 @@ export const HariLiburView: React.FC<HariLiburViewProps> = ({
         type: formData.type,
         startDate: formData.startDate,
         endDate: formData.type === 'range' ? formData.endDate : undefined,
-        scope: formData.scope,
+        scope,
+        sessions: formData.selectedSessions,
         description: formData.description,
       });
     }
@@ -113,14 +145,14 @@ export const HariLiburView: React.FC<HariLiburViewProps> = ({
               Pengaturan Hari Libur
             </h1>
             <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-2xl">
-              Atur libur tanggal tunggal (1 hari) maupun rentang tanggal dengan pilihan target libur (Mengajar Saja, Tahfidz Pagi Saja, Tahfidz Sore Saja, atau Untuk Semuanya).
+              Atur libur tanggal tunggal maupun rentang tanggal dengan kombinasi fleksibel (contoh: Mengajar & Tahfidz Pagi libur, sedangkan Tahfidz Sore tetap masuk).
             </p>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={handleOpenAddModal}
-              className="px-3.5 py-2 text-xs sm:text-sm font-medium bg-emerald-700 text-white hover:bg-emerald-800 rounded-xl transition flex items-center gap-1.5 shadow-xs"
+              className="px-3.5 py-2 text-xs sm:text-sm font-medium bg-emerald-700 text-white hover:bg-emerald-800 rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
             >
               <Plus className="w-4 h-4" />
               <span>Tambah Hari Libur</span>
@@ -137,7 +169,7 @@ export const HariLiburView: React.FC<HariLiburViewProps> = ({
               Libur Pekanan Otomatis (Dari Jadwal)
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Ditandai otomatis oleh sistem karena tidak terdapat sesi mengajar atau tahfidz pada hari tersebut.
+              Ditandai otomatis oleh sistem jika tidak ada jadwal mengajar atau tahfidz pada hari tersebut.
             </p>
           </div>
         </div>
@@ -198,106 +230,249 @@ export const HariLiburView: React.FC<HariLiburViewProps> = ({
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs sm:text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 text-slate-500 font-medium bg-slate-50/70">
-                  <th className="py-3 px-3.5">Nama Hari Libur</th>
-                  <th className="py-3 px-3.5">Bentuk Libur</th>
-                  <th className="py-3 px-3.5">Tanggal / Periode</th>
-                  <th className="py-3 px-3.5">Cakupan Libur</th>
-                  <th className="py-3 px-3.5">Keterangan</th>
-                  <th className="py-3 px-3.5 text-right">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {customHolidays.map(hol => (
-                  <tr key={hol.id} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="py-3.5 px-3.5 font-semibold text-slate-900 whitespace-nowrap">
-                      {hol.title}
-                    </td>
+          <>
+            {/* TAMPILAN KHUSUS MOBILE (sm:hidden) - Desain kartu rapi tanpa scrollbar */}
+            <div className="divide-y divide-slate-100 sm:hidden">
+              {customHolidays.map(hol => {
+                const sessions = getHolidaySessions(hol);
+                const hasMengajar = sessions.includes('mengajar');
+                const hasTahfidzPagi = sessions.includes('tahfidz_pagi');
+                const hasTahfidzSore = sessions.includes('tahfidz_sore');
+                const isAll = sessions.length === 3;
 
-                    <td className="py-3.5 px-3.5 whitespace-nowrap">
-                      <span className="text-xs text-slate-600 font-medium">
-                        {hol.type === 'range' ? 'Rentang Tanggal' : '1 Hari'}
-                      </span>
-                    </td>
+                return (
+                  <div key={hol.id} className="p-3.5 space-y-2.5 bg-white">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h4 className="font-bold text-slate-900 text-sm">
+                          {hol.title}
+                        </h4>
+                        <div className="flex items-center gap-2 mt-1 text-xs text-slate-600 font-mono">
+                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                          <span>
+                            {hol.type === 'range' && hol.endDate
+                              ? `${hol.startDate} s.d. ${hol.endDate}`
+                              : hol.startDate}
+                          </span>
+                          <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">
+                            {hol.type === 'range' ? 'Rentang' : '1 Hari'}
+                          </span>
+                        </div>
+                      </div>
 
-                    <td className="py-3.5 px-3.5 font-mono tabular-nums text-slate-700 whitespace-nowrap">
-                      {hol.type === 'range' && hol.endDate
-                        ? `${hol.startDate} s.d. ${hol.endDate}`
-                        : hol.startDate}
-                    </td>
-
-                    <td className="py-3.5 px-3.5 whitespace-nowrap">
-                      <span
-                        className={`inline-block px-2.5 py-0.5 rounded text-xs font-semibold ${
-                          hol.scope === 'Untuk Semuanya'
-                            ? 'bg-purple-50 text-purple-800 border border-purple-200'
-                            : hol.scope === 'Mengajar Saja'
-                            ? 'bg-blue-50 text-blue-800 border border-blue-200'
-                            : hol.scope === 'Tahfidz Pagi Saja'
-                            ? 'bg-teal-50 text-teal-800 border border-teal-200'
-                            : 'bg-amber-50 text-amber-800 border border-amber-200'
-                        }`}
-                      >
-                        {hol.scope}
-                      </span>
-                    </td>
-
-                    <td className="py-3.5 px-3.5 text-slate-600">
-                      {hol.description || '-'}
-                    </td>
-
-                    <td className="py-3.5 px-3.5 text-right whitespace-nowrap">
-                      <div className="inline-flex items-center gap-1">
+                      <div className="flex items-center gap-1 shrink-0">
                         <button
                           onClick={() => handleOpenEditModal(hol)}
                           className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
                           title="Edit Libur"
                         >
-                          <Edit3 className="w-3.5 h-3.5" />
+                          <Edit3 className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleDeleteHoliday(hol.id, hol.title)}
                           className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                           title="Hapus Libur"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
-                    </td>
+                    </div>
+
+                    {/* Badges Cakupan Libur */}
+                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                      {isAll ? (
+                        <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-purple-50 text-purple-800 border border-purple-200">
+                          Semua Sesi Libur
+                        </span>
+                      ) : (
+                        <>
+                          {hasMengajar && (
+                            <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-200">
+                              Mengajar Libur
+                            </span>
+                          )}
+                          {hasTahfidzPagi && (
+                            <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-teal-50 text-teal-800 border border-teal-200">
+                              Tahfidz Pagi Libur
+                            </span>
+                          )}
+                          {hasTahfidzSore && (
+                            <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                              Tahfidz Sore Libur
+                            </span>
+                          )}
+                          {/* Indikator Tetap Masuk */}
+                          {!hasTahfidzSore && (hasTahfidzPagi || hasMengajar) && (
+                            <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                              Tahfidz Sore Tetap Masuk
+                            </span>
+                          )}
+                          {!hasTahfidzPagi && hasTahfidzSore && (
+                            <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                              Tahfidz Pagi Tetap Masuk
+                            </span>
+                          )}
+                          {!hasMengajar && (hasTahfidzPagi || hasTahfidzSore) && (
+                            <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                              Mengajar Tetap Masuk
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    {hol.description && (
+                      <p className="text-xs text-slate-500 pt-0.5">
+                        {hol.description}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* TAMPILAN TABEL TABLET & DESKTOP (hidden sm:block) */}
+            <div className="hidden sm:block overflow-x-auto no-scrollbar">
+              <table className="w-full text-left border-collapse text-xs sm:text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 text-slate-500 font-medium bg-slate-50/70">
+                    <th className="py-3 px-3.5">Nama Hari Libur</th>
+                    <th className="py-3 px-3.5">Bentuk Libur</th>
+                    <th className="py-3 px-3.5">Tanggal / Periode</th>
+                    <th className="py-3 px-3.5">Cakupan Sesi Libur & Tetap Masuk</th>
+                    <th className="py-3 px-3.5">Keterangan</th>
+                    <th className="py-3 px-3.5 text-right">Aksi</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {customHolidays.map(hol => {
+                    const sessions = getHolidaySessions(hol);
+                    const hasMengajar = sessions.includes('mengajar');
+                    const hasTahfidzPagi = sessions.includes('tahfidz_pagi');
+                    const hasTahfidzSore = sessions.includes('tahfidz_sore');
+                    const isAll = sessions.length === 3;
+
+                    return (
+                      <tr key={hol.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-3.5 px-3.5 font-semibold text-slate-900 whitespace-nowrap">
+                          {hol.title}
+                        </td>
+
+                        <td className="py-3.5 px-3.5 whitespace-nowrap">
+                          <span className="text-xs text-slate-600 font-medium">
+                            {hol.type === 'range' ? 'Rentang Tanggal' : '1 Hari'}
+                          </span>
+                        </td>
+
+                        <td className="py-3.5 px-3.5 font-mono tabular-nums text-slate-700 whitespace-nowrap">
+                          {hol.type === 'range' && hol.endDate
+                            ? `${hol.startDate} s.d. ${hol.endDate}`
+                            : hol.startDate}
+                        </td>
+
+                        <td className="py-3.5 px-3.5">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {isAll ? (
+                              <span className="inline-block px-2.5 py-0.5 rounded text-xs font-semibold bg-purple-50 text-purple-800 border border-purple-200">
+                                Semua Sesi Libur
+                              </span>
+                            ) : (
+                              <>
+                                {hasMengajar && (
+                                  <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-200">
+                                    Mengajar Libur
+                                  </span>
+                                )}
+                                {hasTahfidzPagi && (
+                                  <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-teal-50 text-teal-800 border border-teal-200">
+                                    Tahfidz Pagi Libur
+                                  </span>
+                                )}
+                                {hasTahfidzSore && (
+                                  <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                                    Tahfidz Sore Libur
+                                  </span>
+                                )}
+                                {!hasTahfidzSore && (hasTahfidzPagi || hasMengajar) && (
+                                  <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                    Tahfidz Sore Masuk
+                                  </span>
+                                )}
+                                {!hasTahfidzPagi && hasTahfidzSore && (
+                                  <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                    Tahfidz Pagi Masuk
+                                  </span>
+                                )}
+                                {!hasMengajar && (hasTahfidzPagi || hasTahfidzSore) && (
+                                  <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                    Mengajar Masuk
+                                  </span>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </td>
+
+                        <td className="py-3.5 px-3.5 text-slate-600">
+                          {hol.description || '-'}
+                        </td>
+
+                        <td className="py-3.5 px-3.5 text-right whitespace-nowrap">
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              onClick={() => handleOpenEditModal(hol)}
+                              className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
+                              title="Edit Libur"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteHoliday(hol.id, hol.title)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                              title="Hapus Libur"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
-      {/* MODAL TAMBAH / EDIT HARI LIBUR */}
+      {/* MODAL TAMBAH / EDIT HARI LIBUR DENGAN DUKUNGAN MULTI-SESI */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <h3 className="text-base sm:text-lg font-bold text-slate-900">
-                {editingHoliday ? 'Edit Hari Libur' : 'Tambah Hari Libur'}
-              </h3>
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto no-scrollbar">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-xl border border-slate-200 my-auto">
+            <div className="flex items-center justify-between pb-3.5 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                  <CalendarOff className="w-4 h-4" />
+                </div>
+                <h3 className="text-base sm:text-lg font-bold text-slate-900">
+                  {editingHoliday ? 'Edit Hari Libur' : 'Tambah Hari Libur'}
+                </h3>
+              </div>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="p-1 text-slate-400 hover:text-slate-700 rounded-lg"
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveHoliday} className="py-4 space-y-3.5 text-xs sm:text-sm">
+            <form onSubmit={handleSaveHoliday} className="py-4 space-y-4 text-xs sm:text-sm">
               <div>
-                <label className="block text-slate-700 font-medium mb-1">Nama Hari Libur</label>
+                <label className="block text-slate-700 font-semibold mb-1">Nama Hari Libur</label>
                 <input
                   type="text"
                   required
-                  placeholder="Contoh: Tasmi Akbar Santri / Libur Nasional"
+                  placeholder="Contoh: Tasmi Akbar / Libur Khusus Santri"
                   value={formData.title}
                   onChange={e => setFormData({ ...formData, title: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-500 text-slate-900"
@@ -306,14 +481,14 @@ export const HariLiburView: React.FC<HariLiburViewProps> = ({
 
               {/* Pilihan Bentuk Libur: 1 Hari vs Rentang Tanggal */}
               <div>
-                <label className="block text-slate-700 font-medium mb-1">Bentuk Libur</label>
+                <label className="block text-slate-700 font-semibold mb-1">Bentuk Libur</label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setFormData({ ...formData, type: 'single' })}
-                    className={`py-2 px-3 text-xs font-medium rounded-xl border text-center transition ${
+                    className={`py-2 px-3 text-xs font-medium rounded-xl border text-center transition cursor-pointer ${
                       formData.type === 'single'
-                        ? 'border-emerald-500 bg-emerald-50 text-emerald-800 font-semibold'
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-800 font-bold shadow-2xs'
                         : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                     }`}
                   >
@@ -322,9 +497,9 @@ export const HariLiburView: React.FC<HariLiburViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setFormData({ ...formData, type: 'range' })}
-                    className={`py-2 px-3 text-xs font-medium rounded-xl border text-center transition ${
+                    className={`py-2 px-3 text-xs font-medium rounded-xl border text-center transition cursor-pointer ${
                       formData.type === 'range'
-                        ? 'border-emerald-500 bg-emerald-50 text-emerald-800 font-semibold'
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-800 font-bold shadow-2xs'
                         : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                     }`}
                   >
@@ -336,7 +511,7 @@ export const HariLiburView: React.FC<HariLiburViewProps> = ({
               {/* Tanggal */}
               {formData.type === 'single' ? (
                 <div>
-                  <label className="block text-slate-700 font-medium mb-1">Tanggal Libur</label>
+                  <label className="block text-slate-700 font-semibold mb-1">Tanggal Libur</label>
                   <input
                     type="date"
                     required
@@ -348,7 +523,7 @@ export const HariLiburView: React.FC<HariLiburViewProps> = ({
               ) : (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-slate-700 font-medium mb-1">Tanggal Mulai</label>
+                    <label className="block text-slate-700 font-semibold mb-1">Tanggal Mulai</label>
                     <input
                       type="date"
                       required
@@ -358,7 +533,7 @@ export const HariLiburView: React.FC<HariLiburViewProps> = ({
                     />
                   </div>
                   <div>
-                    <label className="block text-slate-700 font-medium mb-1">Tanggal Selesai</label>
+                    <label className="block text-slate-700 font-semibold mb-1">Tanggal Selesai</label>
                     <input
                       type="date"
                       required
@@ -370,45 +545,193 @@ export const HariLiburView: React.FC<HariLiburViewProps> = ({
                 </div>
               )}
 
-              {/* PILIHAN LIBUR SESUAI SPESIFIKASI:
-                  "pilihan libur untuk mengajar saja, tahfidz pagi saja, tahfidz sore saja atau untuk semuanya" */}
-              <div>
-                <label className="block text-slate-700 font-medium mb-1">
-                  Cakupan / Target Libur
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    'Untuk Semuanya',
-                    'Mengajar Saja',
-                    'Tahfidz Pagi Saja',
-                    'Tahfidz Sore Saja',
-                  ].map(option => (
-                    <label
-                      key={option}
-                      className={`flex items-center gap-2 p-2.5 rounded-xl border cursor-pointer transition text-xs ${
-                        formData.scope === option
-                          ? 'border-emerald-500 bg-emerald-50/70 text-emerald-900 font-semibold'
-                          : 'border-slate-200 hover:bg-slate-50 text-slate-700'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="scope"
-                        checked={formData.scope === option}
-                        onChange={() => setFormData({ ...formData, scope: option as HolidayScope })}
-                        className="text-emerald-600 focus:ring-emerald-500"
-                      />
-                      <span>{option}</span>
-                    </label>
-                  ))}
+              {/* PILIHAN SESI YANG DILIBURKAN: MULTI-CHECKBOX & TOMBOL PINTAS */}
+              <div className="space-y-2.5 pt-1">
+                <div className="flex items-center justify-between">
+                  <label className="block text-slate-800 font-bold">
+                    Pilih Sesi yang Diliburkan
+                  </label>
+                  <span className="text-[11px] text-slate-500 font-medium">
+                    (Bisa pilih lebih dari 1 sesi)
+                  </span>
+                </div>
+
+                {/* Preset Kombinasi Populer */}
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleApplyPreset(['mengajar', 'tahfidz_pagi', 'tahfidz_sore'])}
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 transition cursor-pointer"
+                  >
+                    Semua Sesi Libur
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleApplyPreset(['mengajar', 'tahfidz_pagi'])}
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300 transition cursor-pointer flex items-center gap-1"
+                  >
+                    <span>Mengajar & Tahfidz Pagi Libur</span>
+                    <span className="text-[9px] bg-emerald-700 text-white px-1 py-0.2 rounded font-mono">Sore Masuk</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleApplyPreset(['tahfidz_pagi', 'tahfidz_sore'])}
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-teal-50 text-teal-800 hover:bg-teal-100 border border-teal-200 transition cursor-pointer"
+                  >
+                    Tahfidz Pagi & Sore Libur
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleApplyPreset(['mengajar'])}
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition cursor-pointer"
+                  >
+                    Hanya Mengajar Libur
+                  </button>
+                </div>
+
+                {/* 3 Interactive Multi-Select Checkbox Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+                  {/* 1. Sesi Mengajar */}
+                  <div
+                    onClick={() => handleToggleSession('mengajar')}
+                    className={`p-3 rounded-xl border-2 transition cursor-pointer flex sm:flex-col items-center sm:items-start justify-between sm:justify-start gap-2 ${
+                      formData.selectedSessions.includes('mengajar')
+                        ? 'border-blue-500 bg-blue-50/80 text-blue-900 shadow-xs'
+                        : 'border-slate-200 bg-slate-50/40 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className={`w-5 h-5 rounded-md border flex items-center justify-center ${
+                        formData.selectedSessions.includes('mengajar')
+                          ? 'bg-blue-600 border-blue-600 text-white'
+                          : 'bg-white border-slate-300'
+                      }`}>
+                        {formData.selectedSessions.includes('mengajar') && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                      </div>
+                      <div className="flex items-center gap-1.5 font-bold text-xs">
+                        <BookOpen className="w-3.5 h-3.5 text-blue-700" />
+                        <span>Mengajar</span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-slate-500 sm:mt-1">
+                      Jam KBM / Sekolah
+                    </span>
+                  </div>
+
+                  {/* 2. Sesi Tahfidz Pagi */}
+                  <div
+                    onClick={() => handleToggleSession('tahfidz_pagi')}
+                    className={`p-3 rounded-xl border-2 transition cursor-pointer flex sm:flex-col items-center sm:items-start justify-between sm:justify-start gap-2 ${
+                      formData.selectedSessions.includes('tahfidz_pagi')
+                        ? 'border-teal-500 bg-teal-50/80 text-teal-900 shadow-xs'
+                        : 'border-slate-200 bg-slate-50/40 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className={`w-5 h-5 rounded-md border flex items-center justify-center ${
+                        formData.selectedSessions.includes('tahfidz_pagi')
+                          ? 'bg-teal-600 border-teal-600 text-white'
+                          : 'bg-white border-slate-300'
+                      }`}>
+                        {formData.selectedSessions.includes('tahfidz_pagi') && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                      </div>
+                      <div className="flex items-center gap-1.5 font-bold text-xs">
+                        <Sun className="w-3.5 h-3.5 text-teal-700" />
+                        <span>Tahfidz Pagi</span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-slate-500 sm:mt-1">
+                      Sesi Subuh / Pagi
+                    </span>
+                  </div>
+
+                  {/* 3. Sesi Tahfidz Sore */}
+                  <div
+                    onClick={() => handleToggleSession('tahfidz_sore')}
+                    className={`p-3 rounded-xl border-2 transition cursor-pointer flex sm:flex-col items-center sm:items-start justify-between sm:justify-start gap-2 ${
+                      formData.selectedSessions.includes('tahfidz_sore')
+                        ? 'border-amber-500 bg-amber-50/80 text-amber-900 shadow-xs'
+                        : 'border-slate-200 bg-slate-50/40 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className={`w-5 h-5 rounded-md border flex items-center justify-center ${
+                        formData.selectedSessions.includes('tahfidz_sore')
+                          ? 'bg-amber-600 border-amber-600 text-white'
+                          : 'bg-white border-slate-300'
+                      }`}>
+                        {formData.selectedSessions.includes('tahfidz_sore') && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                      </div>
+                      <div className="flex items-center gap-1.5 font-bold text-xs">
+                        <Sunset className="w-3.5 h-3.5 text-amber-700" />
+                        <span>Tahfidz Sore</span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-slate-500 sm:mt-1">
+                      Sesi Ashar / Sore
+                    </span>
+                  </div>
+                </div>
+
+                {/* Status Ringkasan Pratinjau Real-Time */}
+                <div className="mt-2 p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1.5 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-800">Status Libur & Masuk:</span>
+                  </div>
+
+                  {/* List yang Libur */}
+                  <div className="flex flex-wrap items-center gap-1.5 text-rose-900 font-medium">
+                    <span className="text-[11px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
+                      Diliburkan:
+                    </span>
+                    {formData.selectedSessions.includes('mengajar') && (
+                      <span className="bg-blue-100 text-blue-900 px-2 py-0.5 rounded-md font-semibold text-[11px]">
+                        Mengajar (KBM)
+                      </span>
+                    )}
+                    {formData.selectedSessions.includes('tahfidz_pagi') && (
+                      <span className="bg-teal-100 text-teal-900 px-2 py-0.5 rounded-md font-semibold text-[11px]">
+                        Tahfidz Pagi
+                      </span>
+                    )}
+                    {formData.selectedSessions.includes('tahfidz_sore') && (
+                      <span className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md font-semibold text-[11px]">
+                        Tahfidz Sore
+                      </span>
+                    )}
+                  </div>
+
+                  {/* List yang Tetap Masuk jika ada */}
+                  {formData.selectedSessions.length < 3 && (
+                    <div className="flex flex-wrap items-center gap-1.5 text-emerald-900 font-medium pt-0.5">
+                      <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                        Tetap Masuk:
+                      </span>
+                      {!formData.selectedSessions.includes('mengajar') && (
+                        <span className="bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded-md font-semibold text-[11px]">
+                          Mengajar
+                        </span>
+                      )}
+                      {!formData.selectedSessions.includes('tahfidz_pagi') && (
+                        <span className="bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded-md font-semibold text-[11px]">
+                          Tahfidz Pagi
+                        </span>
+                      )}
+                      {!formData.selectedSessions.includes('tahfidz_sore') && (
+                        <span className="bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded-md font-semibold text-[11px]">
+                          Tahfidz Sore
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div>
-                <label className="block text-slate-700 font-medium mb-1">Keterangan / Alasan</label>
+                <label className="block text-slate-700 font-semibold mb-1">Keterangan / Alasan</label>
                 <input
                   type="text"
-                  placeholder="Misal: Peringatan Hari Santri Nasional"
+                  placeholder="Misal: Tasmi Santri Pagi Hari / Rapat Guru"
                   value={formData.description}
                   onChange={e => setFormData({ ...formData, description: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-500 text-slate-900"
@@ -419,13 +742,13 @@ export const HariLiburView: React.FC<HariLiburViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 text-xs font-medium text-slate-700 bg-slate-100 rounded-xl hover:bg-slate-200 transition cursor-pointer"
+                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 rounded-xl hover:bg-slate-200 transition cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 text-xs font-medium text-white bg-emerald-700 rounded-xl hover:bg-emerald-800 transition shadow-xs cursor-pointer"
+                  className="px-4 py-2 text-xs font-semibold text-white bg-emerald-700 rounded-xl hover:bg-emerald-800 transition shadow-xs cursor-pointer active:scale-95"
                 >
                   {editingHoliday ? 'Perbarui Hari Libur' : 'Simpan Hari Libur'}
                 </button>

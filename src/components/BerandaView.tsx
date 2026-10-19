@@ -118,6 +118,27 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
     onRefreshData();
   };
 
+  // Helper penamaan sesi Tahfidz (misal: Pagi / Sore saat ada libur parsial)
+  const getTahfidzSlotLabel = (slotIdx: number, totalSlots: number) => {
+    if (totalSlots === 2) {
+      if (slotIdx === 0) {
+        return holidayCheckTahfidz.isTahfidzPagiHoliday ? 'Pagi (Libur)' : 'Pagi';
+      }
+      return holidayCheckTahfidz.isTahfidzSoreHoliday ? 'Sore (Libur)' : 'Sore';
+    }
+    return `Jam ${slotIdx + 1}`;
+  };
+
+  const getTahfidzSlotShortLabel = (slotIdx: number, totalSlots: number) => {
+    if (totalSlots === 2) {
+      if (slotIdx === 0) {
+        return holidayCheckTahfidz.isTahfidzPagiHoliday ? 'Pagi (L)' : 'Pagi';
+      }
+      return holidayCheckTahfidz.isTahfidzSoreHoliday ? 'Sore (L)' : 'Sore';
+    }
+    return `J${slotIdx + 1}`;
+  };
+
   const formatIndoDate = (dateStr: string) => {
     try {
       const [y, m, d] = dateStr.split('-').map(Number);
@@ -342,11 +363,18 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
 
           {/* Indikator Status Hari Libur Umum jika ada */}
           {holidayCheckGeneral.isHoliday && (
-            <div className="mt-3 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
-              <span>
-                Hari {selectedDay} ({formatIndoDate(quickDate)}) berstatus: <strong>{holidayCheckGeneral.holiday?.title}</strong> ({holidayCheckGeneral.holiday?.scope}).
-              </span>
+            <div className="mt-3 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+                <span>
+                  Hari {selectedDay} ({formatIndoDate(quickDate)}) ada agenda libur: <strong>{holidayCheckGeneral.holiday?.title}</strong> ({holidayCheckGeneral.holiday?.scope}).
+                  {holidayCheckGeneral.sessions && holidayCheckGeneral.sessions.length < 3 && (
+                    <span className="ml-1 text-slate-700 font-medium">
+                      Sesi yang tidak diliburkan tetap berjalan seperti biasa.
+                    </span>
+                  )}
+                </span>
+              </div>
             </div>
           )}
         </div>
@@ -659,11 +687,30 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
 
               {/* Status Libur Tahfidz Khusus jika ada */}
               {holidayCheckTahfidz.isHoliday && (
-                <div className="m-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
-                  <span>
-                    Catatan: Jam tahfidz hari ini diliburkan ({holidayCheckTahfidz.holiday?.title}).
-                  </span>
+                <div className="m-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+                    <span>
+                      {holidayCheckTahfidz.isTahfidzPartial ? (
+                        holidayCheckTahfidz.isTahfidzPagiHoliday ? (
+                          <>
+                            Catatan: Sesi <strong>Tahfidz Pagi Diliburkan</strong> ({holidayCheckTahfidz.holiday?.title}), sedangkan sesi <strong>Tahfidz Sore TETAP MASUK</strong>.
+                          </>
+                        ) : (
+                          <>
+                            Catatan: Sesi <strong>Tahfidz Sore Diliburkan</strong> ({holidayCheckTahfidz.holiday?.title}), sedangkan sesi <strong>Tahfidz Pagi TETAP MASUK</strong>.
+                          </>
+                        )
+                      ) : (
+                        <>Catatan: Seluruh jam tahfidz hari ini diliburkan ({holidayCheckTahfidz.holiday?.title}).</>
+                      )}
+                    </span>
+                  </div>
+                  {holidayCheckTahfidz.isTahfidzPartial && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 self-start sm:self-auto shrink-0">
+                      {holidayCheckTahfidz.isTahfidzPagiHoliday ? 'Sesi Sore Tetap Masuk' : 'Sesi Pagi Tetap Masuk'}
+                    </span>
+                  )}
                 </div>
               )}
 
@@ -747,17 +794,26 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar flex-1 justify-end">
                               {Array.from({ length: targetTahfidz }).map((_, slotIdx) => {
                                 const slotStatus = record?.tahfidzSlots?.[slotIdx] || 'belum_absen';
+                                const slotLabel = getTahfidzSlotLabel(slotIdx, targetTahfidz);
+                                const shortLabel = getTahfidzSlotShortLabel(slotIdx, targetTahfidz);
+                                const isSlotHoliday = (targetTahfidz === 2) && (
+                                  (slotIdx === 0 && holidayCheckTahfidz.isTahfidzPagiHoliday) ||
+                                  (slotIdx === 1 && holidayCheckTahfidz.isTahfidzSoreHoliday)
+                                );
+
                                 return (
                                   <button
                                     key={slotIdx}
                                     type="button"
                                     onClick={() => handleToggleSlot(sch.teacherId, 'tahfidz', slotIdx)}
-                                    title={`Tahfidz Jam ${slotIdx + 1}: Ketuk ubah status`}
+                                    title={`Tahfidz ${slotLabel}: Ketuk ubah status`}
                                     className={`h-8 px-2 rounded-lg border flex items-center gap-1 transition active:scale-95 cursor-pointer text-xs font-semibold shrink-0 ${
                                       slotStatus === 'hadir'
                                         ? 'bg-teal-600 border-teal-600 text-white'
                                         : slotStatus === 'tidak_hadir'
                                         ? 'bg-rose-600 border-rose-600 text-white'
+                                        : isSlotHoliday
+                                        ? 'bg-amber-50/70 border-amber-300 text-amber-800'
                                         : 'bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100'
                                     }`}
                                   >
@@ -766,7 +822,7 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                                     {slotStatus === 'belum_absen' && (
                                       <span className="w-2.5 h-2.5 rounded-xs border border-slate-400 block bg-white"></span>
                                     )}
-                                    <span className="font-mono text-[11px]">J{slotIdx + 1}</span>
+                                    <span className="font-mono text-[11px]">{shortLabel}</span>
                                   </button>
                                 );
                               })}
@@ -820,17 +876,25 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                                 <div className="flex flex-wrap items-center justify-center gap-2">
                                   {Array.from({ length: targetTahfidz }).map((_, slotIdx) => {
                                     const slotStatus = record?.tahfidzSlots?.[slotIdx] || 'belum_absen';
+                                    const slotLabel = getTahfidzSlotLabel(slotIdx, targetTahfidz);
+                                    const isSlotHoliday = (targetTahfidz === 2) && (
+                                      (slotIdx === 0 && holidayCheckTahfidz.isTahfidzPagiHoliday) ||
+                                      (slotIdx === 1 && holidayCheckTahfidz.isTahfidzSoreHoliday)
+                                    );
+
                                     return (
                                       <button
                                         key={slotIdx}
                                         type="button"
                                         onClick={() => handleToggleSlot(sch.teacherId, 'tahfidz', slotIdx)}
-                                        title={`Tahfidz Jam ke-${slotIdx + 1}: Klik untuk ubah Kosong -> Centang (Hadir) -> Silang (Tidak Hadir)`}
+                                        title={`Tahfidz ${slotLabel}: Klik untuk ubah Kosong -> Centang (Hadir) -> Silang (Tidak Hadir)`}
                                         className={`min-w-[4.6rem] h-9 px-2.5 rounded-xl border flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer text-xs font-semibold shadow-2xs ${
                                           slotStatus === 'hadir'
                                             ? 'bg-teal-600 border-teal-600 text-white hover:bg-teal-700'
                                             : slotStatus === 'tidak_hadir'
                                             ? 'bg-rose-600 border-rose-600 text-white hover:bg-rose-700'
+                                            : isSlotHoliday
+                                            ? 'bg-amber-50/70 border-amber-300 text-amber-800 hover:bg-amber-100'
                                             : 'bg-white border-slate-300 text-slate-600 hover:border-slate-400 hover:bg-slate-50'
                                         }`}
                                       >
@@ -839,7 +903,7 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                                         {slotStatus === 'belum_absen' && (
                                           <span className="w-3.5 h-3.5 rounded-xs border-2 border-slate-300 block bg-slate-50"></span>
                                         )}
-                                        <span className="font-mono text-[11px]">Jam {slotIdx + 1}</span>
+                                        <span className="font-mono text-[11px]">{slotLabel}</span>
                                       </button>
                                     );
                                   })}
@@ -875,54 +939,6 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
         </div>
       </div>
 
-      {/* Sebaran Hari dalam Pekan */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-5 sm:p-6 shadow-xs">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm sm:text-base font-bold text-slate-900">
-            Sebaran Hari Pekanan
-          </h3>
-          <span className="text-xs text-slate-500">
-            Jum'at libur pekanan otomatis jika jam mengajar & tahfidz = 0
-          </span>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2.5">
-          {dayNames.map(day => {
-            let totalDay = 0;
-            schedules.forEach(s => {
-              const h = storage.getTeacherHoursOnDay(s, day);
-              totalDay += h.total;
-            });
-            const isWeeklyHoliday = totalDay === 0;
-
-            return (
-              <div
-                key={day}
-                onClick={() => setSelectedDay(day)}
-                className={`p-3 rounded-xl border text-center cursor-pointer transition ${
-                  selectedDay === day
-                    ? 'border-emerald-500 bg-emerald-50/60 ring-1 ring-emerald-500'
-                    : isWeeklyHoliday
-                    ? 'border-slate-200 bg-slate-50 text-slate-400'
-                    : 'border-slate-200 bg-white hover:border-slate-300'
-                }`}
-              >
-                <div className="text-xs font-semibold text-slate-700 flex items-center justify-center gap-1">
-                  <span>{day}</span>
-                  {day === todayDayOfWeek && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                  )}
-                </div>
-                {isWeeklyHoliday ? (
-                  <span className="text-[10px] text-amber-700 font-medium block mt-1">Libur Pekanan</span>
-                ) : (
-                  <span className="text-xs font-bold text-slate-800 font-mono block mt-1">{totalDay} Jam</span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
     </div>
   );
 };

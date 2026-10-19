@@ -6,7 +6,17 @@ export type AttendanceCheckStatus = 'hadir' | 'tidak_hadir' | 'belum_absen';
 
 export type RecapStatus = 'Kurang' | 'Lengkap' | 'Sangat Lengkap';
 
-export type HolidayScope = 'Mengajar Saja' | 'Tahfidz Saja' | 'Tahfidz Pagi Saja' | 'Tahfidz Sore Saja' | 'Untuk Semuanya';
+export type HolidaySessionType = 'mengajar' | 'tahfidz_pagi' | 'tahfidz_sore';
+
+export type HolidayScope = 
+  | 'Untuk Semuanya' 
+  | 'Mengajar Saja' 
+  | 'Tahfidz Saja' 
+  | 'Tahfidz Pagi Saja' 
+  | 'Tahfidz Sore Saja' 
+  | 'Mengajar & Tahfidz Pagi' 
+  | 'Mengajar & Tahfidz Sore'
+  | string;
 
 export interface Teacher {
   id: string;
@@ -50,6 +60,7 @@ export interface HolidayItem {
   endDate?: string; // YYYY-MM-DD jika range
   dayOfWeek?: DayOfWeek; // Jika weekly
   scope: HolidayScope;
+  sessions?: HolidaySessionType[]; // Array sesi spesifik yang diliburkan: 'mengajar', 'tahfidz_pagi', 'tahfidz_sore'
   isAutomaticWeekly?: boolean;
   description?: string;
 }

@@ -1,6 +1,6 @@
 import { 
   AttendanceCheckStatus, DailyAttendanceRecord, DayOfWeek, HolidayItem, 
-  MonthlyRecapRow, Teacher, TeacherScheduleRow, YearlyReportRow 
+  HolidayScope, HolidaySessionType, MonthlyRecapRow, Teacher, TeacherScheduleRow, YearlyReportRow 
 } from '../types';
 import { ALL_DAYS } from './excelService';
 
@@ -224,6 +224,66 @@ const INITIAL_HOLIDAYS: HolidayItem[] = [
     description: 'Persiapan wisuda santri, jam mengajar ditiadakan, tahfidz tetap berjalan',
   },
 ];
+
+// HELPER UNTUK MENGAMBIL ARRAY SESI YANG DILIBURKAN
+export function getHolidaySessions(h: HolidayItem): HolidaySessionType[] {
+  if (h.sessions && Array.isArray(h.sessions) && h.sessions.length > 0) {
+    return h.sessions;
+  }
+  const scope = (h.scope || '').trim();
+  if (scope === 'Untuk Semuanya') {
+    return ['mengajar', 'tahfidz_pagi', 'tahfidz_sore'];
+  }
+  if (scope === 'Mengajar Saja') {
+    return ['mengajar'];
+  }
+  if (scope === 'Tahfidz Saja') {
+    return ['tahfidz_pagi', 'tahfidz_sore'];
+  }
+  if (scope === 'Tahfidz Pagi Saja') {
+    return ['tahfidz_pagi'];
+  }
+  if (scope === 'Tahfidz Sore Saja') {
+    return ['tahfidz_sore'];
+  }
+  if (scope.includes('Mengajar') && scope.includes('Pagi')) {
+    return ['mengajar', 'tahfidz_pagi'];
+  }
+  if (scope.includes('Mengajar') && scope.includes('Sore')) {
+    return ['mengajar', 'tahfidz_sore'];
+  }
+  return ['mengajar', 'tahfidz_pagi', 'tahfidz_sore'];
+}
+
+// FORMAT NAMA CAKUPAN BERDASARKAN ARRAY SESI YANG DIPILIH
+export function formatHolidayScopeTitle(sessions: HolidaySessionType[]): HolidayScope {
+  const hasMengajar = sessions.includes('mengajar');
+  const hasTahfidzPagi = sessions.includes('tahfidz_pagi');
+  const hasTahfidzSore = sessions.includes('tahfidz_sore');
+
+  if (hasMengajar && hasTahfidzPagi && hasTahfidzSore) {
+    return 'Untuk Semuanya';
+  }
+  if (hasMengajar && hasTahfidzPagi && !hasTahfidzSore) {
+    return 'Mengajar & Tahfidz Pagi';
+  }
+  if (hasMengajar && !hasTahfidzPagi && hasTahfidzSore) {
+    return 'Mengajar & Tahfidz Sore';
+  }
+  if (hasMengajar && !hasTahfidzPagi && !hasTahfidzSore) {
+    return 'Mengajar Saja';
+  }
+  if (!hasMengajar && hasTahfidzPagi && hasTahfidzSore) {
+    return 'Tahfidz Saja';
+  }
+  if (!hasMengajar && hasTahfidzPagi && !hasTahfidzSore) {
+    return 'Tahfidz Pagi Saja';
+  }
+  if (!hasMengajar && !hasTahfidzPagi && hasTahfidzSore) {
+    return 'Tahfidz Sore Saja';
+  }
+  return 'Untuk Semuanya';
+}
 
 class StorageRepository {
   private teachers: Teacher[] = [];
@@ -533,8 +593,15 @@ class StorageRepository {
   }
 
   public addHoliday(holiday: Omit<HolidayItem, 'id'>): HolidayItem {
+    const sessions = holiday.sessions && holiday.sessions.length > 0 
+      ? holiday.sessions 
+      : getHolidaySessions(holiday as HolidayItem);
+    const scope = holiday.scope || formatHolidayScopeTitle(sessions);
+
     const newHoliday: HolidayItem = {
       ...holiday,
+      scope,
+      sessions,
       id: `hol-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       isAutomaticWeekly: holiday.type === 'weekly',
     };
@@ -546,7 +613,19 @@ class StorageRepository {
   public updateHoliday(id: string, updates: Partial<HolidayItem>): HolidayItem | null {
     const idx = this.holidays.findIndex(h => h.id === id);
     if (idx === -1) return null;
-    this.holidays[idx] = { ...this.holidays[idx], ...updates };
+
+    let sessions = updates.sessions || this.holidays[idx].sessions;
+    if (!sessions && updates.scope) {
+      sessions = getHolidaySessions({ ...this.holidays[idx], ...updates } as HolidayItem);
+    }
+    const scope = updates.scope || (sessions ? formatHolidayScopeTitle(sessions) : this.holidays[idx].scope);
+
+    this.holidays[idx] = { 
+      ...this.holidays[idx], 
+      ...updates,
+      scope,
+      sessions,
+    };
     this.saveHolidays();
     return this.holidays[idx];
   }
@@ -559,7 +638,19 @@ class StorageRepository {
     return true;
   }
 
-  public isDateHoliday(dateStr: string, dayOfWeek: DayOfWeek, scopeCheck?: 'Mengajar' | 'Tahfidz'): { isHoliday: boolean; holiday?: HolidayItem } {
+  public isDateHoliday(
+    dateStr: string, 
+    dayOfWeek: DayOfWeek, 
+    scopeCheck?: 'Mengajar' | 'Tahfidz' | 'Tahfidz_Pagi' | 'Tahfidz_Sore'
+  ): { 
+    isHoliday: boolean; 
+    holiday?: HolidayItem;
+    sessions?: HolidaySessionType[];
+    isTahfidzPagiHoliday?: boolean;
+    isTahfidzSoreHoliday?: boolean;
+    isTahfidzPartial?: boolean;
+    isMengajarHoliday?: boolean;
+  } {
     for (const h of this.holidays) {
       let dateMatches = false;
 
@@ -574,14 +665,50 @@ class StorageRepository {
       }
 
       if (dateMatches) {
-        if (h.scope === 'Untuk Semuanya') {
-          return { isHoliday: true, holiday: h };
+        const sessions = getHolidaySessions(h);
+        const hasMengajar = sessions.includes('mengajar');
+        const hasTahfidzPagi = sessions.includes('tahfidz_pagi');
+        const hasTahfidzSore = sessions.includes('tahfidz_sore');
+        const isTahfidzPartial = (hasTahfidzPagi && !hasTahfidzSore) || (!hasTahfidzPagi && hasTahfidzSore);
+
+        if (!scopeCheck) {
+          return { 
+            isHoliday: true, 
+            holiday: h,
+            sessions,
+            isTahfidzPagiHoliday: hasTahfidzPagi,
+            isTahfidzSoreHoliday: hasTahfidzSore,
+            isTahfidzPartial,
+            isMengajarHoliday: hasMengajar,
+          };
         }
-        if (scopeCheck === 'Mengajar' && h.scope === 'Mengajar Saja') {
-          return { isHoliday: true, holiday: h };
+
+        if (scopeCheck === 'Mengajar' && hasMengajar) {
+          return { 
+            isHoliday: true, 
+            holiday: h,
+            sessions,
+            isMengajarHoliday: true,
+          };
         }
-        if (scopeCheck === 'Tahfidz' && (h.scope === 'Tahfidz Saja' || h.scope === 'Tahfidz Pagi Saja' || h.scope === 'Tahfidz Sore Saja')) {
-          return { isHoliday: true, holiday: h };
+
+        if (scopeCheck === 'Tahfidz' && (hasTahfidzPagi || hasTahfidzSore)) {
+          return { 
+            isHoliday: true, 
+            holiday: h,
+            sessions,
+            isTahfidzPagiHoliday: hasTahfidzPagi,
+            isTahfidzSoreHoliday: hasTahfidzSore,
+            isTahfidzPartial,
+          };
+        }
+
+        if (scopeCheck === 'Tahfidz_Pagi' && hasTahfidzPagi) {
+          return { isHoliday: true, holiday: h, sessions };
+        }
+
+        if (scopeCheck === 'Tahfidz_Sore' && hasTahfidzSore) {
+          return { isHoliday: true, holiday: h, sessions };
         }
       }
     }
@@ -964,6 +1091,11 @@ class StorageRepository {
         const holTahfidz = this.isDateHoliday(dateStr, dayOfWeek, 'Tahfidz');
         if (!holTahfidz.isHoliday) {
           targetTahfidz += hours.tahfidz;
+        } else if (holTahfidz.isTahfidzPartial) {
+          // Jika hanya salah satu sesi tahfidz yang libur (misal: Pagi libur, Sore tetap masuk)
+          if (hours.tahfidz > 1) {
+            targetTahfidz += Math.max(1, hours.tahfidz - 1);
+          }
         }
       }
 
