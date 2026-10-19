@@ -448,40 +448,52 @@ class StorageRepository {
     }
   }
 
-  // Hubungkan ke MongoDB dengan URI yang diinput pengguna
-  public async connectMongo(uri: string, databaseName: string): Promise<{ success: boolean; message?: string; error?: string }> {
-    try {
-      const res = await fetch('/api/db/connect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uri, databaseName }),
-      });
-      const text = await res.text();
-      let data: any = {};
+  // Hubungkan ke MongoDB dengan URI yang diinput pengguna (dengan auto-retry saat cold-start)
+  public async connectMongo(uri: string, databaseName: string, retries = 2): Promise<{ success: boolean; message?: string; error?: string }> {
+    for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        data = JSON.parse(text);
-      } catch (parseErr) {
-        if (!res.ok) {
+        const res = await fetch('/api/db/connect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uri, databaseName }),
+        });
+        const text = await res.text();
+        let data: any = {};
+        try {
+          data = JSON.parse(text);
+        } catch (parseErr) {
+          // Jika server masih cold-start / restarting (404/502/503), coba kembali dengan jeda
+          if (!res.ok && (res.status === 404 || res.status === 502 || res.status === 503) && attempt < retries) {
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            continue;
+          }
+          if (!res.ok) {
+            return {
+              success: false,
+              error: `Server backend merespons kode status ${res.status} (${res.statusText || 'Gagal memproses'}). Kemungkinan server sedang memulai ulang setelah proses deploy. Silakan coba beberapa detik lagi.`,
+            };
+          }
           return {
             success: false,
-            error: `Server backend merespons kode status ${res.status} (${res.statusText || 'Gagal memproses'}). Kemungkinan server sedang memulai ulang. Silakan coba beberapa detik lagi.`,
+            error: 'Respons dari server bukan format JSON yang valid.',
           };
         }
-        return {
-          success: false,
-          error: 'Respons dari server bukan format JSON yang valid.',
-        };
-      }
 
-      if (res.ok && data.success) {
-        await this.syncWithBackend();
-        return { success: true, message: data.message };
-      } else {
-        return { success: false, error: data.error || 'Gagal terhubung ke MongoDB' };
+        if (res.ok && data.success) {
+          await this.syncWithBackend();
+          return { success: true, message: data.message };
+        } else {
+          return { success: false, error: data.error || 'Gagal terhubung ke MongoDB' };
+        }
+      } catch (e: any) {
+        if (attempt < retries) {
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          continue;
+        }
+        return { success: false, error: e.message || 'Gagal menghubungi server backend' };
       }
-    } catch (e: any) {
-      return { success: false, error: e.message || 'Gagal menghubungi server backend' };
     }
+    return { success: false, error: 'Gagal menghubungi server backend setelah beberapa percobaan.' };
   }
 
   // Putuskan koneksi MongoDB

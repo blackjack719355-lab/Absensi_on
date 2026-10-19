@@ -1,6 +1,5 @@
 import express from 'express';
 import type { Request, Response } from 'express';
-import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -161,7 +160,11 @@ if (initialConfig.uri && !initialConfig.uri.includes('username:password') && !in
 
 async function startServer() {
   const app = express();
-  const PORT = parseInt(process.env.PORT || '3000', 10);
+  const isDev = process.env.NODE_ENV === 'development';
+  const PORT = parseInt(
+    (isDev ? (process.env.DEFAULT_APP_PORT || '3000') : process.env.PORT) || '3000',
+    10
+  );
 
   app.use(express.json({ limit: '10mb' }));
 
@@ -445,20 +448,54 @@ async function startServer() {
   });
 
   // ==========================================
+  // API 404 FALLBACK (Selalu kembalikan JSON)
+  // ==========================================
+  app.all('/api/*', (req: Request, res: Response) => {
+    res.status(404).json({
+      success: false,
+      error: `Endpoint API "${req.method} ${req.path}" tidak ditemukan pada backend.`,
+    });
+  });
+
+  // ==========================================
   // VITE / STATIC SERVING
   // ==========================================
-  if (process.env.NODE_ENV === 'production') {
-    app.use(express.static(path.resolve(__dirname, 'dist')));
+  const distPath = path.resolve(__dirname, 'dist');
+  const hasDist = fs.existsSync(path.resolve(distPath, 'index.html'));
+
+  if (!isDev && hasDist) {
+    // Mode Produksi: Sajikan file statis dari folder dist
+    console.log('[absensi-on] Menjalankan dalam mode produksi (Static dist)');
+    app.use(express.static(distPath));
     app.get('*', (req: Request, res: Response) => {
-      res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
+      res.sendFile(path.resolve(distPath, 'index.html'));
     });
   } else {
+    // Mode Development: Muat Vite secara dinamis
+    console.log('[absensi-on] Menjalankan dalam mode development (Vite middleware)');
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
   }
+
+  // Global Error Handler
+  app.use((err: any, req: Request, res: Response, next: any) => {
+    console.error('[absensi-on Server Error]', err);
+    if (res.headersSent) {
+      return next(err);
+    }
+    if (req.path.startsWith('/api/')) {
+      res.status(500).json({
+        success: false,
+        error: err.message || 'Terjadi kesalahan internal pada server backend.',
+      });
+    } else {
+      res.status(500).send('Internal Server Error');
+    }
+  });
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[absensi-on] Fullstack Server berjalan pada http://0.0.0.0:${PORT}`);
