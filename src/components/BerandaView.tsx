@@ -22,8 +22,8 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
   onRefreshData,
 }) => {
   // Metrik Beranda:
-  // 1. Jumlah guru aktif
-  const activeTeachersCount = teachers.filter(t => t.active).length;
+  // 1. Jumlah guru aktif: selaras 100% dengan data pada menu jadwal
+  const activeTeachersCount = schedules.length;
 
   // 2. Jam per minggu (total jam mengajar + tahfidz di semua guru)
   let totalTeachingHours = 0;
@@ -169,7 +169,7 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                 {activeTeachersCount}
               </h3>
               <p className="text-xs text-slate-600 mt-1 hidden sm:block">
-                Tenaga pendidik aktif terdaftar
+                Tenaga pendidik aktif di jadwal
               </p>
             </div>
             <div className="w-7 h-7 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-slate-100 flex items-center justify-center text-slate-700 shrink-0">
@@ -177,7 +177,7 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
             </div>
           </div>
           <div className="mt-3 pt-2.5 border-t border-slate-100 text-xs text-slate-500 hidden sm:flex justify-between">
-            <span>Terdaftar di Jadwal</span>
+            <span>Sesuai Data Jadwal</span>
             <span className="font-semibold text-slate-800 font-mono">{schedules.length} Guru</span>
           </div>
         </div>

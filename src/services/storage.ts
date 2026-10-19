@@ -37,175 +37,139 @@ export function getLocalDayOfWeek(d: Date = new Date()): DayOfWeek {
   return dayNames[d.getDay()];
 }
 
-// Data awal realistis guru
+// Data awal guru terdaftar selaras dengan jadwal aktif
 const INITIAL_TEACHERS: Teacher[] = [
-  {
-    id: 't-1',
-    name: 'Ust. Ahmad Fauzi, S.Pd.I',
-    nip: '198405122010011002',
-    phone: '081234567801',
-    active: true,
-    createdAt: '2026-01-01',
-  },
-  {
-    id: 't-2',
-    name: 'Usth. Siti Maryam, S.Pd',
-    nip: '198809242014022003',
-    phone: '081234567802',
-    active: true,
-    createdAt: '2026-01-01',
-  },
-  {
-    id: 't-3',
-    name: 'Ust. Muhammad Rizky, Lc',
-    nip: '199003152018011004',
-    phone: '081234567803',
-    active: true,
-    createdAt: '2026-01-01',
-  },
-  {
-    id: 't-4',
-    name: 'Usth. Fatimah Az-Zahra, M.Pd',
-    nip: '198611112011012005',
-    phone: '081234567804',
-    active: true,
-    createdAt: '2026-01-01',
-  },
-  {
-    id: 't-5',
-    name: 'Ust. Hasan Basri, S.Kom',
-    nip: '199208072020121006',
-    phone: '081234567805',
-    active: true,
-    createdAt: '2026-01-01',
-  },
-  {
-    id: 't-6',
-    name: 'Ust. Bilal Al-Fatih, S.Ag',
-    nip: '199401202021021007',
-    phone: '081234567806',
-    active: true,
-    createdAt: '2026-01-01',
-  },
+  { id: 't-1792055084401-418', name: 'Ust. Ridwan', active: true, createdAt: '2026-10-15T09:04:44.401Z' },
+  { id: 't-1792055084401-719', name: 'Ust. Muttaqin', active: true, createdAt: '2026-10-15T09:04:44.401Z' },
+  { id: 't-1792055084401-261', name: 'Ust. Aef', active: true, createdAt: '2026-10-15T09:04:44.401Z' },
+  { id: 't-1792055084401-998', name: 'Ust. Tiar', active: true, createdAt: '2026-10-15T09:04:44.401Z' },
+  { id: 't-1792055084401-695', name: 'Ust. Qoshidin', active: true, createdAt: '2026-10-15T09:04:44.401Z' },
+  { id: 't-1792055084401-521', name: 'Ust. Afrizal', active: true, createdAt: '2026-10-15T09:04:44.401Z' },
+  { id: 't-1792055084401-984', name: 'Ust. Hafiq', active: true, createdAt: '2026-10-15T09:04:44.401Z' },
+  { id: 't-1792055084401-10', name: 'Ust. Rahman', active: true, createdAt: '2026-10-15T09:04:44.401Z' },
+  { id: 't-1792055084401-392', name: 'Ust. Usamah', active: true, createdAt: '2026-10-15T09:04:44.401Z' },
+  { id: 't-1792055084401-404', name: 'Ust. Ade', active: true, createdAt: '2026-10-15T09:04:44.401Z' },
+  { id: 't-1792055084402-74', name: 'Ust. Muhsin', active: true, createdAt: '2026-10-15T09:04:44.402Z' },
+  { id: 't-1792055084402-781', name: 'Ust. Suryadi', active: true, createdAt: '2026-10-15T09:04:44.402Z' },
+  { id: 't-1792055084402-307', name: 'Ust. Husein', active: true, createdAt: '2026-10-15T09:04:44.402Z' },
+  { id: 't-1792055084402-290', name: 'Ust. Azzam', active: true, createdAt: '2026-10-15T09:04:44.402Z' },
+  { id: 't-1792055084402-230', name: 'Ust. Gilang', active: true, createdAt: '2026-10-15T09:04:44.402Z' },
+  { id: 't-1792055084402-819', name: 'Ust. Ahmad', active: true, createdAt: '2026-10-15T09:04:44.402Z' },
 ];
 
-// Data awal jadwal guru sesuai format yang diminta:
-// senin 1, selasa 1, rabu 2, kamis 3, jum'at 0, sabtu 1, minggu 2,
-// tahfidz senin 2, tahfidz selasa 1, tahfidz rabu 1, tahfidz kamis 2, tahfidz jum'at 0, tahfidz sabtu 2, tahfidz minggu 2
+// Data awal jadwal guru selaras 100% dengan menu Jadwal (16 guru):
 const INITIAL_SCHEDULES: TeacherScheduleRow[] = [
   {
-    id: 'sch-1',
-    teacherId: 't-1',
-    teacherName: 'Ust. Ahmad Fauzi, S.Pd.I',
-    senin: 1,
-    selasa: 1,
-    rabu: 2,
-    kamis: 3,
-    jumat: 0,
-    sabtu: 1,
-    minggu: 2,
-    tahfidzSenin: 2,
-    tahfidzSelasa: 1,
-    tahfidzRabu: 1,
-    tahfidzKamis: 2,
-    tahfidzJumat: 0,
-    tahfidzSabtu: 2,
-    tahfidzMinggu: 2,
+    id: 'sch-1792387830616-1',
+    teacherId: 't-1792055084401-418',
+    teacherName: 'Ust. Ridwan',
+    senin: 0, selasa: 1, rabu: 1, kamis: 2, jumat: 0, sabtu: 2, minggu: 0,
+    tahfidzSenin: 0, tahfidzSelasa: 0, tahfidzRabu: 0, tahfidzKamis: 0, tahfidzJumat: 0, tahfidzSabtu: 0, tahfidzMinggu: 0,
   },
   {
-    id: 'sch-2',
-    teacherId: 't-2',
-    teacherName: 'Usth. Siti Maryam, S.Pd',
-    senin: 2,
-    selasa: 2,
-    rabu: 2,
-    kamis: 2,
-    jumat: 0,
-    sabtu: 1,
-    minggu: 0,
-    tahfidzSenin: 1,
-    tahfidzSelasa: 1,
-    tahfidzRabu: 0,
-    tahfidzKamis: 0,
-    tahfidzJumat: 0,
-    tahfidzSabtu: 0,
-    tahfidzMinggu: 0,
+    id: 'sch-1792387830616-2',
+    teacherId: 't-1792055084401-719',
+    teacherName: 'Ust. Muttaqin',
+    senin: 2, selasa: 1, rabu: 2, kamis: 2, jumat: 0, sabtu: 1, minggu: 0,
+    tahfidzSenin: 0, tahfidzSelasa: 0, tahfidzRabu: 0, tahfidzKamis: 0, tahfidzJumat: 0, tahfidzSabtu: 0, tahfidzMinggu: 0,
   },
   {
-    id: 'sch-3',
-    teacherId: 't-3',
-    teacherName: 'Ust. Muhammad Rizky, Lc',
-    senin: 0,
-    selasa: 2,
-    rabu: 2,
-    kamis: 2,
-    jumat: 0,
-    sabtu: 2,
-    minggu: 1,
-    tahfidzSenin: 2,
-    tahfidzSelasa: 2,
-    tahfidzRabu: 2,
-    tahfidzKamis: 2,
-    tahfidzJumat: 0,
-    tahfidzSabtu: 2,
-    tahfidzMinggu: 1,
+    id: 'sch-1792387830616-3',
+    teacherId: 't-1792055084401-261',
+    teacherName: 'Ust. Aef',
+    senin: 1, selasa: 2, rabu: 0, kamis: 2, jumat: 0, sabtu: 0, minggu: 2,
+    tahfidzSenin: 2, tahfidzSelasa: 1, tahfidzRabu: 1, tahfidzKamis: 2, tahfidzJumat: 0, tahfidzSabtu: 2, tahfidzMinggu: 2,
   },
   {
-    id: 'sch-4',
-    teacherId: 't-4',
-    teacherName: 'Usth. Fatimah Az-Zahra, M.Pd',
-    senin: 2,
-    selasa: 2,
-    rabu: 2,
-    kamis: 2,
-    jumat: 0,
-    sabtu: 1,
-    minggu: 0,
-    tahfidzSenin: 0,
-    tahfidzSelasa: 0,
-    tahfidzRabu: 0,
-    tahfidzKamis: 0,
-    tahfidzJumat: 0,
-    tahfidzSabtu: 0,
-    tahfidzMinggu: 0,
+    id: 'sch-1792387830616-4',
+    teacherId: 't-1792055084401-998',
+    teacherName: 'Ust. Tiar',
+    senin: 2, selasa: 2, rabu: 1, kamis: 0, jumat: 0, sabtu: 0, minggu: 0,
+    tahfidzSenin: 0, tahfidzSelasa: 0, tahfidzRabu: 0, tahfidzKamis: 0, tahfidzJumat: 0, tahfidzSabtu: 0, tahfidzMinggu: 0,
   },
   {
-    id: 'sch-5',
-    teacherId: 't-5',
-    teacherName: 'Ust. Hasan Basri, S.Kom',
-    senin: 2,
-    selasa: 0,
-    rabu: 2,
-    kamis: 0,
-    jumat: 0,
-    sabtu: 2,
-    minggu: 0,
-    tahfidzSenin: 0,
-    tahfidzSelasa: 0,
-    tahfidzRabu: 0,
-    tahfidzKamis: 0,
-    tahfidzJumat: 0,
-    tahfidzSabtu: 0,
-    tahfidzMinggu: 0,
+    id: 'sch-1792387830616-5',
+    teacherId: 't-1792055084401-695',
+    teacherName: 'Ust. Qoshidin',
+    senin: 1, selasa: 0, rabu: 1, kamis: 1, jumat: 0, sabtu: 0, minggu: 1,
+    tahfidzSenin: 2, tahfidzSelasa: 1, tahfidzRabu: 1, tahfidzKamis: 2, tahfidzJumat: 0, tahfidzSabtu: 2, tahfidzMinggu: 2,
   },
   {
-    id: 'sch-6',
-    teacherId: 't-6',
-    teacherName: 'Ust. Bilal Al-Fatih, S.Ag',
-    senin: 0,
-    selasa: 0,
-    rabu: 0,
-    kamis: 0,
-    jumat: 0,
-    sabtu: 0,
-    minggu: 0,
-    tahfidzSenin: 2,
-    tahfidzSelasa: 2,
-    tahfidzRabu: 2,
-    tahfidzKamis: 2,
-    tahfidzJumat: 0,
-    tahfidzSabtu: 2,
-    tahfidzMinggu: 2,
+    id: 'sch-1792387830616-6',
+    teacherId: 't-1792055084401-521',
+    teacherName: 'Ust. Afrizal',
+    senin: 0, selasa: 2, rabu: 0, kamis: 1, jumat: 0, sabtu: 0, minggu: 0,
+    tahfidzSenin: 2, tahfidzSelasa: 1, tahfidzRabu: 1, tahfidzKamis: 2, tahfidzJumat: 0, tahfidzSabtu: 2, tahfidzMinggu: 2,
+  },
+  {
+    id: 'sch-1792387830616-7',
+    teacherId: 't-1792055084401-984',
+    teacherName: 'Ust. Hafiq',
+    senin: 2, selasa: 1, rabu: 2, kamis: 1, jumat: 0, sabtu: 0, minggu: 0,
+    tahfidzSenin: 2, tahfidzSelasa: 1, tahfidzRabu: 1, tahfidzKamis: 2, tahfidzJumat: 0, tahfidzSabtu: 2, tahfidzMinggu: 2,
+  },
+  {
+    id: 'sch-1792387830616-8',
+    teacherId: 't-1792055084401-10',
+    teacherName: 'Ust. Rahman',
+    senin: 1, selasa: 2, rabu: 3, kamis: 2, jumat: 0, sabtu: 0, minggu: 0,
+    tahfidzSenin: 2, tahfidzSelasa: 1, tahfidzRabu: 1, tahfidzKamis: 2, tahfidzJumat: 0, tahfidzSabtu: 2, tahfidzMinggu: 2,
+  },
+  {
+    id: 'sch-1792387830616-9',
+    teacherId: 't-1792055084401-392',
+    teacherName: 'Ust. Usamah',
+    senin: 0, selasa: 0, rabu: 0, kamis: 0, jumat: 0, sabtu: 3, minggu: 3,
+    tahfidzSenin: 2, tahfidzSelasa: 1, tahfidzRabu: 1, tahfidzKamis: 2, tahfidzJumat: 0, tahfidzSabtu: 2, tahfidzMinggu: 2,
+  },
+  {
+    id: 'sch-1792387830616-10',
+    teacherId: 't-1792055084401-404',
+    teacherName: 'Ust. Ade',
+    senin: 1, selasa: 0, rabu: 0, kamis: 0, jumat: 0, sabtu: 2, minggu: 1,
+    tahfidzSenin: 2, tahfidzSelasa: 1, tahfidzRabu: 1, tahfidzKamis: 2, tahfidzJumat: 0, tahfidzSabtu: 2, tahfidzMinggu: 2,
+  },
+  {
+    id: 'sch-1792387830616-11',
+    teacherId: 't-1792055084402-74',
+    teacherName: 'Ust. Muhsin',
+    senin: 1, selasa: 0, rabu: 1, kamis: 0, jumat: 0, sabtu: 0, minggu: 1,
+    tahfidzSenin: 2, tahfidzSelasa: 1, tahfidzRabu: 1, tahfidzKamis: 2, tahfidzJumat: 0, tahfidzSabtu: 2, tahfidzMinggu: 2,
+  },
+  {
+    id: 'sch-1792387830616-12',
+    teacherId: 't-1792055084402-781',
+    teacherName: 'Ust. Suryadi',
+    senin: 0, selasa: 0, rabu: 0, kamis: 0, jumat: 0, sabtu: 0, minggu: 3,
+    tahfidzSenin: 0, tahfidzSelasa: 0, tahfidzRabu: 0, tahfidzKamis: 0, tahfidzJumat: 0, tahfidzSabtu: 0, tahfidzMinggu: 0,
+  },
+  {
+    id: 'sch-1792387830616-13',
+    teacherId: 't-1792055084402-307',
+    teacherName: 'Ust. Husein',
+    senin: 0, selasa: 0, rabu: 0, kamis: 0, jumat: 0, sabtu: 3, minggu: 0,
+    tahfidzSenin: 2, tahfidzSelasa: 1, tahfidzRabu: 1, tahfidzKamis: 2, tahfidzJumat: 0, tahfidzSabtu: 2, tahfidzMinggu: 2,
+  },
+  {
+    id: 'sch-1792387830616-14',
+    teacherId: 't-1792055084402-290',
+    teacherName: 'Ust. Azzam',
+    senin: 0, selasa: 0, rabu: 0, kamis: 0, jumat: 0, sabtu: 0, minggu: 0,
+    tahfidzSenin: 2, tahfidzSelasa: 1, tahfidzRabu: 1, tahfidzKamis: 2, tahfidzJumat: 0, tahfidzSabtu: 2, tahfidzMinggu: 2,
+  },
+  {
+    id: 'sch-1792387830616-15',
+    teacherId: 't-1792055084402-230',
+    teacherName: 'Ust. Gilang',
+    senin: 0, selasa: 0, rabu: 1, kamis: 0, jumat: 0, sabtu: 1, minggu: 1,
+    tahfidzSenin: 0, tahfidzSelasa: 0, tahfidzRabu: 0, tahfidzKamis: 0, tahfidzJumat: 0, tahfidzSabtu: 0, tahfidzMinggu: 0,
+  },
+  {
+    id: 'sch-1792387830616-16',
+    teacherId: 't-1792055084402-819',
+    teacherName: 'Ust. Ahmad',
+    senin: 1, selasa: 1, rabu: 0, kamis: 0, jumat: 0, sabtu: 0, minggu: 0,
+    tahfidzSenin: 0, tahfidzSelasa: 0, tahfidzRabu: 0, tahfidzKamis: 0, tahfidzJumat: 0, tahfidzSabtu: 0, tahfidzMinggu: 0,
   },
 ];
 
@@ -421,19 +385,20 @@ class StorageRepository {
               result = null;
             }
             if (result && result.data) {
-              if (Array.isArray(result.data.teachers) && result.data.teachers.length > 0) {
-                this.teachers = result.data.teachers;
-                this.saveTeachers();
-              }
               if (Array.isArray(result.data.schedules) && result.data.schedules.length > 0) {
                 this.schedules = result.data.schedules;
                 this.saveSchedules();
+              }
+              if (Array.isArray(result.data.teachers)) {
+                const scheduleNames = new Set(this.schedules.map(s => s.teacherName.toLowerCase().trim()));
+                this.teachers = (result.data.teachers as Teacher[]).filter((t: Teacher) => scheduleNames.has((t.name || '').toLowerCase().trim()));
+                this.saveTeachers();
               }
               if (Array.isArray(result.data.holidays) && result.data.holidays.length > 0) {
                 this.holidays = result.data.holidays;
                 this.saveHolidays();
               }
-              if (Array.isArray(result.data.attendances) && result.data.attendances.length > 0) {
+              if (Array.isArray(result.data.attendances)) {
                 this.attendances = result.data.attendances;
                 this.saveAttendances();
               }
@@ -684,38 +649,38 @@ class StorageRepository {
     };
   }
 
-  // Generate sampel presensi realistis
+  // Generate sampel presensi - dikosongkan agar presensi 100% murni dari input pengguna
   private generateSampleAttendances(): DailyAttendanceRecord[] {
-    const records: DailyAttendanceRecord[] = [];
-    const todayStr = getLocalDateString();
-    const todayDay = getLocalDayOfWeek();
-
-    // Hari ini (misal default Centang / Hadir atau Kosong)
-    this.schedules.forEach(sch => {
-      const hours = this.getTeacherHoursOnDay(sch, todayDay);
-      // Buat presensi untuk hari ini
-      records.push({
-        id: `att-${todayStr}-${sch.teacherId}`,
-        date: todayStr,
-        teacherId: sch.teacherId,
-        teacherName: sch.teacherName,
-        status: hours.total > 0 ? 'hadir' : 'belum_absen',
-        targetMengajar: hours.mengajar,
-        actualMengajar: hours.total > 0 ? hours.mengajar : 0,
-        targetTahfidz: hours.tahfidz,
-        actualTahfidz: hours.total > 0 ? hours.tahfidz : 0,
-        mengajarSlots: Array(hours.mengajar).fill(hours.mengajar > 0 ? 'hadir' : 'belum_absen'),
-        tahfidzSlots: Array(hours.tahfidz).fill(hours.tahfidz > 0 ? 'hadir' : 'belum_absen'),
-        updatedAt: `${todayStr} 07:00`,
-      });
-    });
-
-    return records;
+    return [];
   }
 
-  // TEACHERS
+  // TEACHERS (diselaraskan 100% dengan guru yang aktif di jadwal)
   public getTeachers(): Teacher[] {
-    return [...this.teachers];
+    const scheduleTeacherNames = new Set(this.schedules.map(s => s.teacherName.toLowerCase().trim()));
+    const validTeachers = this.teachers.filter(t => scheduleTeacherNames.has(t.name.toLowerCase().trim()));
+    // Jika ada guru di jadwal yang belum ada di list teachers lokal, lengkapi otomatis
+    this.schedules.forEach(s => {
+      if (!validTeachers.some(t => t.name.toLowerCase().trim() === s.teacherName.toLowerCase().trim())) {
+        validTeachers.push({
+          id: s.teacherId || `t-${s.id}`,
+          name: s.teacherName,
+          active: true,
+          createdAt: '2026-01-01',
+        });
+      }
+    });
+    return validTeachers;
+  }
+
+  // Bersihkan seluruh data presensi (reset murni ke 0 untuk semua guru)
+  public async clearAllAttendances(): Promise<boolean> {
+    this.attendances = [];
+    this.saveAttendances();
+    try {
+      await fetch('/api/attendance/clear', { method: 'POST' });
+    } catch {}
+    this.notifyListeners();
+    return true;
   }
 
   public addTeacher(teacher: Omit<Teacher, 'id' | 'createdAt'>): Teacher {
@@ -1322,31 +1287,32 @@ class StorageRepository {
         }
       }
 
-      // Hitung realisasi
-      const teacherRecords = monthlyAttendances.filter(a => a.teacherId === sch.teacherId);
+      // Hitung realisasi murni dari input presensi guru yang tercatat
+      const teacherRecords = monthlyAttendances.filter(a => a.teacherId === sch.teacherId || a.teacherName === sch.teacherName);
       let actualTeaching = 0;
       let actualTahfidz = 0;
 
       teacherRecords.forEach(rec => {
-        if (rec.status === 'hadir') {
+        if (typeof rec.actualMengajar === 'number') {
           actualTeaching += rec.actualMengajar;
+        } else if (rec.status === 'hadir') {
+          actualTeaching += rec.targetMengajar || 0;
+        }
+
+        if (typeof rec.actualTahfidz === 'number') {
           actualTahfidz += rec.actualTahfidz;
+        } else if (rec.status === 'hadir') {
+          actualTahfidz += rec.targetTahfidz || 0;
         }
       });
 
-      // Estimasi realisasi untuk simulasi awal jika belum lengkap
-      if (teacherRecords.length === 0 && targetTeaching + targetTahfidz > 0 && year === 2026 && month === 10) {
-        actualTeaching = Math.round(targetTeaching * 0.95);
-        actualTahfidz = Math.round(targetTahfidz * 0.98);
-      }
-
       const totalTarget = targetTeaching + targetTahfidz;
       const totalActual = actualTeaching + actualTahfidz;
-      const percentage = totalTarget > 0 ? Math.round((totalActual / totalTarget) * 100) : 100;
+      const percentage = totalTarget > 0 ? Math.round((totalActual / totalTarget) * 100) : 0;
       const diffTeaching = actualTeaching - targetTeaching;
       const diffTahfidz = actualTahfidz - targetTahfidz;
 
-      let status: 'Kurang' | 'Lengkap' | 'Sangat Lengkap' = 'Lengkap';
+      let status: 'Kurang' | 'Lengkap' | 'Sangat Lengkap' = 'Kurang';
       if (totalTarget === 0) {
         status = 'Lengkap';
       } else if (percentage >= 105) {
@@ -1395,9 +1361,9 @@ class StorageRepository {
       }
 
       const actualTotalHours = actualTeaching + actualTahfidz;
-      const percentage = targetTotalHours > 0 ? Math.round((actualTotalHours / targetTotalHours) * 100) : 100;
+      const percentage = targetTotalHours > 0 ? Math.round((actualTotalHours / targetTotalHours) * 100) : 0;
 
-      let status: 'Kurang' | 'Lengkap' | 'Sangat Lengkap' = 'Lengkap';
+      let status: 'Kurang' | 'Lengkap' | 'Sangat Lengkap' = 'Kurang';
       if (targetTotalHours === 0) {
         status = 'Lengkap';
       } else if (percentage >= 105) {

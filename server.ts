@@ -488,6 +488,27 @@ async function startServer() {
     }
   });
 
+  // Hapus seluruh presensi (reset murni ke 0)
+  app.post('/api/attendance/clear', async (req: Request, res: Response) => {
+    if (!currentDb) return res.status(503).json({ error: 'DB not connected' });
+    try {
+      const result = await currentDb.collection('attendances').deleteMany({});
+      res.json({ success: true, deletedCount: result.deletedCount, message: 'Seluruh data presensi berhasil dibersihkan.' });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.delete('/api/attendance', async (req: Request, res: Response) => {
+    if (!currentDb) return res.status(503).json({ error: 'DB not connected' });
+    try {
+      const result = await currentDb.collection('attendances').deleteMany({});
+      res.json({ success: true, deletedCount: result.deletedCount, message: 'Seluruh data presensi berhasil dibersihkan.' });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // ==========================================
   // API 404 FALLBACK (Selalu kembalikan JSON)
   // ==========================================
