@@ -315,12 +315,25 @@ class StorageRepository {
         this.saveHolidays();
       }
 
-      const savedAttendance = localStorage.getItem(STORAGE_KEY_ATTENDANCE);
-      if (savedAttendance) {
-        this.attendances = JSON.parse(savedAttendance);
-      } else {
-        this.attendances = this.generateSampleAttendances();
+      // Pastikan presensi bersih dari data dummy: 100% murni dari input pengguna
+      const cleanVer = localStorage.getItem('absensi_on_clean_version');
+      if (cleanVer !== 'v2_clean_attendances') {
+        this.attendances = [];
         this.saveAttendances();
+        localStorage.setItem('absensi_on_clean_version', 'v2_clean_attendances');
+      } else {
+        const savedAttendance = localStorage.getItem(STORAGE_KEY_ATTENDANCE);
+        if (savedAttendance) {
+          try {
+            const parsed = JSON.parse(savedAttendance);
+            this.attendances = Array.isArray(parsed) ? parsed : [];
+          } catch {
+            this.attendances = [];
+          }
+        } else {
+          this.attendances = [];
+          this.saveAttendances();
+        }
       }
 
       const savedConfig = localStorage.getItem(STORAGE_KEY_CONFIG);
@@ -649,6 +662,77 @@ class StorageRepository {
     };
   }
 
+  // Jam efektif mengajar & tahfidz guru pada tanggal tertentu dengan memperhitungkan hari libur:
+  // 1. Jika tanggal tercatat libur mengajar (atau libur semuanya), jadwal mengajar otomatis tidak ditampilkan (jam mengajar = 0).
+  // 2. Jika tanggal tercatat libur tahfidz penuh (atau libur semuanya), jadwal tahfidz otomatis tidak ditampilkan (jam tahfidz = 0).
+  // 3. Jika hanya salah satu sesi tahfidz yang libur (misal: hanya tahfidz sore saja), maka jam tahfidz dikurangi menjadi hanya 1 jam tahfidz saja.
+  public getEffectiveTeacherHoursOnDate(
+    schedule: TeacherScheduleRow,
+    dateStr: string,
+    dayOfWeek: DayOfWeek
+  ): {
+    mengajar: number;
+    tahfidz: number;
+    total: number;
+    isMengajarHoliday: boolean;
+    isTahfidzHoliday: boolean;
+    isTahfidzPartial: boolean;
+    activeTahfidzSession?: 'pagi' | 'sore' | 'both' | 'none';
+    holidayTitle?: string;
+  } {
+    const baseHours = this.getTeacherHoursOnDay(schedule, dayOfWeek);
+    let mengajar = baseHours.mengajar;
+    let tahfidz = baseHours.tahfidz;
+
+    const holGeneral = this.isDateHoliday(dateStr, dayOfWeek);
+    const holMengajar = this.isDateHoliday(dateStr, dayOfWeek, 'Mengajar');
+    const holTahfidz = this.isDateHoliday(dateStr, dayOfWeek, 'Tahfidz');
+
+    let isMengajarHoliday = false;
+    let isTahfidzHoliday = false;
+    let isTahfidzPartial = false;
+    let activeTahfidzSession: 'pagi' | 'sore' | 'both' | 'none' = 'both';
+
+    // 1. Cek Libur Mengajar
+    if (holMengajar.isHoliday) {
+      isMengajarHoliday = true;
+      mengajar = 0; // Jadwal mengajar otomatis ditiadakan / tidak ditampilkan
+    }
+
+    // 2. Cek Libur Tahfidz
+    if (holTahfidz.isHoliday) {
+      isTahfidzHoliday = true;
+      if (holTahfidz.isTahfidzPartial) {
+        isTahfidzPartial = true;
+        // Kasus spesifik: jika libur hanya tahfidz sore, kurangi menjadi hanya 1 jam tahfidz saja (sesi pagi)
+        if (holTahfidz.isTahfidzSoreHoliday && !holTahfidz.isTahfidzPagiHoliday) {
+          tahfidz = baseHours.tahfidz > 0 ? 1 : 0;
+          activeTahfidzSession = 'pagi';
+        } else if (holTahfidz.isTahfidzPagiHoliday && !holTahfidz.isTahfidzSoreHoliday) {
+          tahfidz = baseHours.tahfidz > 0 ? 1 : 0;
+          activeTahfidzSession = 'sore';
+        }
+      } else {
+        // Libur tahfidz penuh (pagi & sore libur)
+        tahfidz = 0; // Jadwal tahfidz otomatis ditiadakan / tidak ditampilkan
+        activeTahfidzSession = 'none';
+      }
+    } else {
+      activeTahfidzSession = tahfidz > 0 ? 'both' : 'none';
+    }
+
+    return {
+      mengajar,
+      tahfidz,
+      total: mengajar + tahfidz,
+      isMengajarHoliday,
+      isTahfidzHoliday,
+      isTahfidzPartial,
+      activeTahfidzSession,
+      holidayTitle: holGeneral.holiday?.title,
+    };
+  }
+
   // Generate sampel presensi - dikosongkan agar presensi 100% murni dari input pengguna
   private generateSampleAttendances(): DailyAttendanceRecord[] {
     return [];
@@ -839,9 +923,13 @@ class StorageRepository {
     isTahfidzPartial?: boolean;
     isMengajarHoliday?: boolean;
   } {
-    for (const h of this.holidays) {
+    // Cari semua agenda libur yang cocok dengan tanggal & hari ini
+    // Urutkan agenda khusus terlebih dahulu di atas libur pekanan otomatis
+    const list = [...this.holidays].sort((a, b) => (a.isAutomaticWeekly ? 1 : 0) - (b.isAutomaticWeekly ? 1 : 0));
+    
+    const matching: HolidayItem[] = [];
+    for (const h of list) {
       let dateMatches = false;
-
       if (h.type === 'weekly' && h.dayOfWeek === dayOfWeek) {
         dateMatches = true;
       } else if (h.type === 'single' && h.startDate === dateStr) {
@@ -851,55 +939,71 @@ class StorageRepository {
           dateMatches = true;
         }
       }
-
       if (dateMatches) {
-        const sessions = getHolidaySessions(h);
-        const hasMengajar = sessions.includes('mengajar');
-        const hasTahfidzPagi = sessions.includes('tahfidz_pagi');
-        const hasTahfidzSore = sessions.includes('tahfidz_sore');
-        const isTahfidzPartial = (hasTahfidzPagi && !hasTahfidzSore) || (!hasTahfidzPagi && hasTahfidzSore);
-
-        if (!scopeCheck) {
-          return { 
-            isHoliday: true, 
-            holiday: h,
-            sessions,
-            isTahfidzPagiHoliday: hasTahfidzPagi,
-            isTahfidzSoreHoliday: hasTahfidzSore,
-            isTahfidzPartial,
-            isMengajarHoliday: hasMengajar,
-          };
-        }
-
-        if (scopeCheck === 'Mengajar' && hasMengajar) {
-          return { 
-            isHoliday: true, 
-            holiday: h,
-            sessions,
-            isMengajarHoliday: true,
-          };
-        }
-
-        if (scopeCheck === 'Tahfidz' && (hasTahfidzPagi || hasTahfidzSore)) {
-          return { 
-            isHoliday: true, 
-            holiday: h,
-            sessions,
-            isTahfidzPagiHoliday: hasTahfidzPagi,
-            isTahfidzSoreHoliday: hasTahfidzSore,
-            isTahfidzPartial,
-          };
-        }
-
-        if (scopeCheck === 'Tahfidz_Pagi' && hasTahfidzPagi) {
-          return { isHoliday: true, holiday: h, sessions };
-        }
-
-        if (scopeCheck === 'Tahfidz_Sore' && hasTahfidzSore) {
-          return { isHoliday: true, holiday: h, sessions };
-        }
+        matching.push(h);
       }
     }
+
+    if (matching.length === 0) {
+      return { isHoliday: false };
+    }
+
+    // Gabungkan seluruh sesi yang diliburkan pada tanggal tersebut
+    const mergedSessions = new Set<HolidaySessionType>();
+    for (const h of matching) {
+      const sList = getHolidaySessions(h);
+      for (const s of sList) {
+        mergedSessions.add(s);
+      }
+    }
+
+    const hasMengajar = mergedSessions.has('mengajar');
+    const hasTahfidzPagi = mergedSessions.has('tahfidz_pagi');
+    const hasTahfidzSore = mergedSessions.has('tahfidz_sore');
+    const isTahfidzPartial = (hasTahfidzPagi && !hasTahfidzSore) || (!hasTahfidzPagi && hasTahfidzSore);
+    const primaryHoliday = matching[0];
+    const sessionsArray = Array.from(mergedSessions);
+
+    if (!scopeCheck) {
+      return { 
+        isHoliday: true, 
+        holiday: primaryHoliday,
+        sessions: sessionsArray,
+        isTahfidzPagiHoliday: hasTahfidzPagi,
+        isTahfidzSoreHoliday: hasTahfidzSore,
+        isTahfidzPartial,
+        isMengajarHoliday: hasMengajar,
+      };
+    }
+
+    if (scopeCheck === 'Mengajar' && hasMengajar) {
+      return { 
+        isHoliday: true, 
+        holiday: primaryHoliday,
+        sessions: sessionsArray,
+        isMengajarHoliday: true,
+      };
+    }
+
+    if (scopeCheck === 'Tahfidz' && (hasTahfidzPagi || hasTahfidzSore)) {
+      return { 
+        isHoliday: true, 
+        holiday: primaryHoliday,
+        sessions: sessionsArray,
+        isTahfidzPagiHoliday: hasTahfidzPagi,
+        isTahfidzSoreHoliday: hasTahfidzSore,
+        isTahfidzPartial,
+      };
+    }
+
+    if (scopeCheck === 'Tahfidz_Pagi' && hasTahfidzPagi) {
+      return { isHoliday: true, holiday: primaryHoliday, sessions: sessionsArray };
+    }
+
+    if (scopeCheck === 'Tahfidz_Sore' && hasTahfidzSore) {
+      return { isHoliday: true, holiday: primaryHoliday, sessions: sessionsArray };
+    }
+
     return { isHoliday: false };
   }
 
@@ -914,11 +1018,11 @@ class StorageRepository {
     const dayOfWeek = ALL_DAYS[dateObj.getDay() === 0 ? 6 : dateObj.getDay() - 1]; // or getLocalDayOfWeek
 
     return this.schedules.map(sch => {
-      const hours = this.getTeacherHoursOnDay(sch, dayOfWeek);
+      const hours = this.getEffectiveTeacherHoursOnDate(sch, date, dayOfWeek);
       const existing = this.attendances.find(a => a.date === date && (a.teacherId === sch.teacherId || a.teacherName === sch.teacherName));
 
       if (existing) {
-        // Sinkronisasi slot dengan jam jadwal hari tersebut
+        // Sinkronisasi slot dengan jam jadwal efektif hari tersebut (memperhitungkan libur)
         let modified = false;
         if (!existing.mengajarSlots || existing.mengajarSlots.length !== hours.mengajar) {
           existing.mengajarSlots = Array(hours.mengajar).fill(
@@ -932,7 +1036,7 @@ class StorageRepository {
           );
           modified = true;
         }
-        if (modified) {
+        if (modified || existing.targetMengajar !== hours.mengajar || existing.targetTahfidz !== hours.tahfidz) {
           existing.targetMengajar = hours.mengajar;
           existing.targetTahfidz = hours.tahfidz;
           existing.actualMengajar = existing.mengajarSlots.filter(s => s === 'hadir').length;
@@ -969,7 +1073,7 @@ class StorageRepository {
     const sch = this.schedules.find(s => s.teacherId === teacherId);
     if (!sch) return;
 
-    const hours = this.getTeacherHoursOnDay(sch, dayOfWeek);
+    const hours = this.getEffectiveTeacherHoursOnDate(sch, date, dayOfWeek);
     let recIdx = this.attendances.findIndex(a => a.date === date && a.teacherId === teacherId);
     let record: DailyAttendanceRecord;
 
@@ -1044,7 +1148,7 @@ class StorageRepository {
     dayOfWeek: DayOfWeek
   ) {
     this.schedules.forEach(sch => {
-      const hours = this.getTeacherHoursOnDay(sch, dayOfWeek);
+      const hours = this.getEffectiveTeacherHoursOnDate(sch, date, dayOfWeek);
       const slotCount = type === 'mengajar' ? hours.mengajar : hours.tahfidz;
       if (slotCount === 0) return;
 
@@ -1118,7 +1222,7 @@ class StorageRepository {
     const sch = this.schedules.find(s => s.teacherId === teacherId);
     if (!sch) return;
 
-    const hours = this.getTeacherHoursOnDay(sch, dayOfWeek);
+    const hours = this.getEffectiveTeacherHoursOnDate(sch, date, dayOfWeek);
     let recIdx = this.attendances.findIndex(a => a.date === date && a.teacherId === teacherId);
     let record: DailyAttendanceRecord;
 
@@ -1269,22 +1373,9 @@ class StorageRepository {
         const dayOfWeek = dayMap[dateObj.getDay()];
         const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-        const hours = this.getTeacherHoursOnDay(sch, dayOfWeek);
-
-        const holMengajar = this.isDateHoliday(dateStr, dayOfWeek, 'Mengajar');
-        if (!holMengajar.isHoliday) {
-          targetTeaching += hours.mengajar;
-        }
-
-        const holTahfidz = this.isDateHoliday(dateStr, dayOfWeek, 'Tahfidz');
-        if (!holTahfidz.isHoliday) {
-          targetTahfidz += hours.tahfidz;
-        } else if (holTahfidz.isTahfidzPartial) {
-          // Jika hanya salah satu sesi tahfidz yang libur (misal: Pagi libur, Sore tetap masuk)
-          if (hours.tahfidz > 1) {
-            targetTahfidz += Math.max(1, hours.tahfidz - 1);
-          }
-        }
+        const eff = this.getEffectiveTeacherHoursOnDate(sch, dateStr, dayOfWeek);
+        targetTeaching += eff.mengajar;
+        targetTahfidz += eff.tahfidz;
       }
 
       // Hitung realisasi murni dari input presensi guru yang tercatat

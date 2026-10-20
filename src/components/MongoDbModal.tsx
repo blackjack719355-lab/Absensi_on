@@ -43,6 +43,7 @@ export const MongoDbModal: React.FC<MongoDbModalProps> = ({
 
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showClearAttendanceConfirm, setShowClearAttendanceConfirm] = useState(false);
 
   if (!isOpen) return null;
 
@@ -644,39 +645,75 @@ export const MongoDbModal: React.FC<MongoDbModalProps> = ({
                   </label>
                 </div>
 
-                {showResetConfirm ? (
-                  <div className="flex items-center gap-2">
-                    <span className="text-rose-700 font-semibold text-[11px]">Yakin reset ke data awal?</span>
+                <div className="flex items-center gap-3">
+                  {showClearAttendanceConfirm ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-amber-700 font-semibold text-[11px]">Kosongkan seluruh riwayat presensi?</span>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          setShowClearAttendanceConfirm(false);
+                          await storage.clearAllAttendances();
+                          onRefreshData();
+                          setResetStatus('Seluruh data presensi berhasil dibersihkan.');
+                          setTimeout(() => setResetStatus(null), 3500);
+                        }}
+                        className="px-2 py-1 bg-amber-600 text-white rounded text-[11px] font-bold hover:bg-amber-700 cursor-pointer"
+                      >
+                        Ya, Kosongkan
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowClearAttendanceConfirm(false)}
+                        className="px-2 py-1 border border-slate-300 rounded text-[11px] text-slate-600 hover:bg-slate-50 cursor-pointer"
+                      >
+                        Batal
+                      </button>
+                    </div>
+                  ) : (
                     <button
                       type="button"
-                      onClick={() => {
-                        setShowResetConfirm(false);
-                        storage.resetToDefault();
-                        onRefreshData();
-                        setResetStatus('Database berhasil dikembalikan ke data awal.');
-                        setTimeout(() => setResetStatus(null), 3000);
-                      }}
-                      className="px-2 py-1 bg-rose-600 text-white rounded text-[11px] font-bold hover:bg-rose-700 cursor-pointer"
+                      onClick={() => setShowClearAttendanceConfirm(true)}
+                      className="text-amber-700 hover:text-amber-800 font-medium hover:underline text-xs cursor-pointer"
                     >
-                      Ya, Reset
+                      Kosongkan Semua Presensi
                     </button>
+                  )}
+
+                  {showResetConfirm ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-rose-700 font-semibold text-[11px]">Yakin reset ke data awal?</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowResetConfirm(false);
+                          storage.resetToDefault();
+                          onRefreshData();
+                          setResetStatus('Database berhasil dikembalikan ke data awal.');
+                          setTimeout(() => setResetStatus(null), 3000);
+                        }}
+                        className="px-2 py-1 bg-rose-600 text-white rounded text-[11px] font-bold hover:bg-rose-700 cursor-pointer"
+                      >
+                        Ya, Reset
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowResetConfirm(false)}
+                        className="px-2 py-1 border border-slate-300 rounded text-[11px] text-slate-600 hover:bg-slate-50 cursor-pointer"
+                      >
+                        Batal
+                      </button>
+                    </div>
+                  ) : (
                     <button
                       type="button"
-                      onClick={() => setShowResetConfirm(false)}
-                      className="px-2 py-1 border border-slate-300 rounded text-[11px] text-slate-600 hover:bg-slate-50 cursor-pointer"
+                      onClick={() => setShowResetConfirm(true)}
+                      className="text-rose-600 hover:text-rose-700 font-medium hover:underline text-xs cursor-pointer"
                     >
-                      Batal
+                      Reset Data Awal
                     </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setShowResetConfirm(true)}
-                    className="text-rose-600 hover:text-rose-700 font-medium hover:underline text-xs cursor-pointer"
-                  >
-                    Reset Data Awal
-                  </button>
-                )}
+                  )}
+                </div>
               </div>
 
               {resetStatus && (

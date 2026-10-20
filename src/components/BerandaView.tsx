@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Users, Clock, Award, Check, X, RotateCcw, AlertCircle, 
-  CheckCircle2, BookOpen, Sparkles, Filter 
+  CheckCircle2, BookOpen, Sparkles, Filter, CalendarOff, Calendar 
 } from 'lucide-react';
 import { AttendanceCheckStatus, DayOfWeek, HolidayItem, Teacher, TeacherScheduleRow } from '../types';
 import { storage, getLocalDateString, getLocalDayOfWeek } from '../services/storage';
@@ -66,18 +66,18 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
   const holidayCheckMengajar = storage.isDateHoliday(quickDate, selectedDay, 'Mengajar');
   const holidayCheckTahfidz = storage.isDateHoliday(quickDate, selectedDay, 'Tahfidz');
 
-  // Ambil presensi harian untuk tanggal terpilih
+  // Ambil presensi harian untuk tanggal terpilih (sudah otomatis menyesuaikan dengan libur)
   const dailyAttendance = storage.getDailyAttendance(quickDate);
 
-  // 1. Filter guru yang memiliki jam mengajar pada hari terpilih
+  // 1. Filter guru yang memiliki jam mengajar efektif pada hari & tanggal terpilih (otomatis kosong jika tanggal libur)
   const teachingTeachersToday = schedules.filter(sch => {
-    const hours = storage.getTeacherHoursOnDay(sch, selectedDay);
+    const hours = storage.getEffectiveTeacherHoursOnDate(sch, quickDate, selectedDay);
     return hours.mengajar > 0;
   });
 
-  // 2. Filter guru yang memiliki jam tahfidz pada hari terpilih
+  // 2. Filter guru yang memiliki jam tahfidz efektif pada hari & tanggal terpilih (otomatis berkurang jika libur parsial / kosong jika libur penuh)
   const tahfidzTeachersToday = schedules.filter(sch => {
-    const hours = storage.getTeacherHoursOnDay(sch, selectedDay);
+    const hours = storage.getEffectiveTeacherHoursOnDate(sch, quickDate, selectedDay);
     return hours.tahfidz > 0;
   });
 
@@ -120,21 +120,27 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
 
   // Helper penamaan sesi Tahfidz (misal: Pagi / Sore saat ada libur parsial)
   const getTahfidzSlotLabel = (slotIdx: number, totalSlots: number) => {
+    if (holidayCheckTahfidz.isTahfidzSoreHoliday && !holidayCheckTahfidz.isTahfidzPagiHoliday) {
+      return 'Pagi';
+    }
+    if (holidayCheckTahfidz.isTahfidzPagiHoliday && !holidayCheckTahfidz.isTahfidzSoreHoliday) {
+      return 'Sore';
+    }
     if (totalSlots === 2) {
-      if (slotIdx === 0) {
-        return holidayCheckTahfidz.isTahfidzPagiHoliday ? 'Pagi (Libur)' : 'Pagi';
-      }
-      return holidayCheckTahfidz.isTahfidzSoreHoliday ? 'Sore (Libur)' : 'Sore';
+      return slotIdx === 0 ? 'Pagi' : 'Sore';
     }
     return `Jam ${slotIdx + 1}`;
   };
 
   const getTahfidzSlotShortLabel = (slotIdx: number, totalSlots: number) => {
+    if (holidayCheckTahfidz.isTahfidzSoreHoliday && !holidayCheckTahfidz.isTahfidzPagiHoliday) {
+      return 'Pagi';
+    }
+    if (holidayCheckTahfidz.isTahfidzPagiHoliday && !holidayCheckTahfidz.isTahfidzSoreHoliday) {
+      return 'Sore';
+    }
     if (totalSlots === 2) {
-      if (slotIdx === 0) {
-        return holidayCheckTahfidz.isTahfidzPagiHoliday ? 'Pagi (L)' : 'Pagi';
-      }
-      return holidayCheckTahfidz.isTahfidzSoreHoliday ? 'Sore (L)' : 'Sore';
+      return slotIdx === 0 ? 'Pagi' : 'Sore';
     }
     return `J${slotIdx + 1}`;
   };
@@ -266,16 +272,37 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
               </p>
             </div>
 
-            {!isToday && (
-              <button
-                type="button"
-                onClick={handleResetToToday}
-                className="self-start sm:self-auto px-3 py-1.5 text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl hover:bg-emerald-100 transition flex items-center gap-1 cursor-pointer"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>Kembali ke Hari Ini</span>
-              </button>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200/90 rounded-xl px-2.5 py-1.5 shadow-2xs">
+                <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                <input
+                  type="date"
+                  value={quickDate}
+                  onChange={e => {
+                    const val = e.target.value;
+                    if (!val) return;
+                    setQuickDate(val);
+                    const [y, m, d] = val.split('-').map(Number);
+                    const dt = new Date(y, m - 1, d);
+                    const idx = dt.getDay() === 0 ? 6 : dt.getDay() - 1;
+                    setSelectedDay(dayNames[idx]);
+                  }}
+                  className="bg-transparent text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer"
+                  title="Pilih tanggal presensi"
+                />
+              </div>
+
+              {!isToday && (
+                <button
+                  type="button"
+                  onClick={handleResetToToday}
+                  className="px-3 py-1.5 text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl hover:bg-emerald-100 transition flex items-center gap-1 cursor-pointer shadow-2xs"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Hari Ini</span>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Tab Pilihan 2 Bagian Sederhana: Mengajar & Tahfidz */}
@@ -295,7 +322,7 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                 <span className={`text-[10px] sm:text-xs px-2 py-0.5 rounded-full font-mono font-bold shrink-0 ${
                   sectionFilter === 'mengajar' ? 'bg-blue-800 text-blue-100' : 'bg-slate-200 text-slate-700'
                 }`}>
-                  {teachingTeachersToday.length} Guru
+                  {holidayCheckMengajar.isHoliday ? 'Libur Mengajar' : `${teachingTeachersToday.length} Guru`}
                 </span>
               </button>
 
@@ -313,7 +340,11 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                 <span className={`text-[10px] sm:text-xs px-2 py-0.5 rounded-full font-mono font-bold shrink-0 ${
                   sectionFilter === 'tahfidz' ? 'bg-teal-800 text-teal-100' : 'bg-slate-200 text-slate-700'
                 }`}>
-                  {tahfidzTeachersToday.length} Guru
+                  {holidayCheckTahfidz.isHoliday && !holidayCheckTahfidz.isTahfidzPartial
+                    ? 'Libur Tahfidz'
+                    : holidayCheckTahfidz.isTahfidzPartial
+                    ? `${tahfidzTeachersToday.length} Guru (1 Jam)`
+                    : `${tahfidzTeachersToday.length} Guru`}
                 </span>
               </button>
             </div>
@@ -407,29 +438,36 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
           {/* ============================================================ */}
           {sectionFilter === 'mengajar' && (
             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-              {/* Status Libur Mengajar Khusus jika ada */}
-              {holidayCheckMengajar.isHoliday && (
-                <div className="m-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
-                  <span>
-                    Catatan: Jam mengajar hari ini diliburkan ({holidayCheckMengajar.holiday?.title}).
-                  </span>
-                </div>
-              )}
-
               {/* Tabel Presensi Mengajar */}
-              {teachingTeachersToday.length === 0 ? (
+              {holidayCheckMengajar.isHoliday ? (
+                <div className="py-12 px-4 text-center">
+                  <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-700 flex items-center justify-center mx-auto mb-3 border border-blue-200 shadow-2xs">
+                    <CalendarOff className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Hari Ini Libur Mengajar: {holidayCheckMengajar.holiday?.title || 'Agenda Libur'}
+                  </h3>
+                  <p className="text-xs text-slate-600 mt-1 max-w-md mx-auto">
+                    Jadwal presensi mengajar otomatis tidak ditampilkan karena tercatat pada menu Hari Libur.
+                  </p>
+                  {holidayCheckMengajar.holiday?.description && (
+                    <p className="text-xs text-slate-400 mt-1.5 italic">
+                      "{holidayCheckMengajar.holiday.description}"
+                    </p>
+                  )}
+                </div>
+              ) : teachingTeachersToday.length === 0 ? (
                 <div className="py-10 text-center text-xs text-slate-500">
                   <AlertCircle className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                   <p className="font-semibold text-slate-700">Tidak ada jadwal jam mengajar pada hari {selectedDay}</p>
-                  <p className="mt-1 text-slate-400">Hari ini libur mengajar untuk seluruh guru.</p>
+                  <p className="mt-1 text-slate-400">Hari ini tidak ada jam mengajar terjadwal.</p>
                 </div>
               ) : (
                 <>
                   {/* TAMPILAN KHUSUS MOBILE APP (sm:hidden) - Desain Simpel, Kompak & Cepat */}
                   <div className="divide-y divide-slate-100 sm:hidden">
                     {teachingTeachersToday.map((sch, index) => {
-                      const hours = storage.getTeacherHoursOnDay(sch, selectedDay);
+                      const hours = storage.getEffectiveTeacherHoursOnDate(sch, quickDate, selectedDay);
                       const record = dailyAttendance.find(a => a.teacherId === sch.teacherId);
                       const actualMengajar = record?.actualMengajar ?? 0;
                       const targetMengajar = hours.mengajar;
@@ -541,7 +579,7 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {teachingTeachersToday.map((sch, index) => {
-                          const hours = storage.getTeacherHoursOnDay(sch, selectedDay);
+                          const hours = storage.getEffectiveTeacherHoursOnDate(sch, quickDate, selectedDay);
                           const record = dailyAttendance.find(a => a.teacherId === sch.teacherId);
                           const actualMengajar = record?.actualMengajar ?? 0;
                           const targetMengajar = hours.mengajar;
@@ -629,47 +667,51 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
           {sectionFilter === 'tahfidz' && (
             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
               {/* Status Libur Tahfidz Khusus jika ada */}
-              {holidayCheckTahfidz.isHoliday && (
-                <div className="m-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              {holidayCheckTahfidz.isHoliday && holidayCheckTahfidz.isTahfidzPartial && (
+                <div className="m-4 p-3.5 rounded-xl bg-teal-50 border border-teal-200 text-teal-950 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+                    <Sparkles className="w-4 h-4 text-teal-700 shrink-0" />
                     <span>
-                      {holidayCheckTahfidz.isTahfidzPartial ? (
-                        holidayCheckTahfidz.isTahfidzPagiHoliday ? (
-                          <>
-                            Catatan: Sesi <strong>Tahfidz Pagi Diliburkan</strong> ({holidayCheckTahfidz.holiday?.title}), sedangkan sesi <strong>Tahfidz Sore TETAP MASUK</strong>.
-                          </>
-                        ) : (
-                          <>
-                            Catatan: Sesi <strong>Tahfidz Sore Diliburkan</strong> ({holidayCheckTahfidz.holiday?.title}), sedangkan sesi <strong>Tahfidz Pagi TETAP MASUK</strong>.
-                          </>
-                        )
-                      ) : (
-                        <>Catatan: Seluruh jam tahfidz hari ini diliburkan ({holidayCheckTahfidz.holiday?.title}).</>
-                      )}
+                      <strong>Penyesuaian Hari Libur:</strong> {holidayCheckTahfidz.isTahfidzSoreHoliday ? 'Tahfidz Sore hari ini diliburkan' : 'Tahfidz Pagi hari ini diliburkan'} ({holidayCheckTahfidz.holiday?.title || 'Agenda Libur'}). 
+                      Alokasi presensi tahfidz hari ini dikurangi menjadi hanya <strong>1 Jam ({holidayCheckTahfidz.isTahfidzSoreHoliday ? 'Sesi Pagi Saja' : 'Sesi Sore Saja'})</strong>.
                     </span>
                   </div>
-                  {holidayCheckTahfidz.isTahfidzPartial && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 self-start sm:self-auto shrink-0">
-                      {holidayCheckTahfidz.isTahfidzPagiHoliday ? 'Sesi Sore Tetap Masuk' : 'Sesi Pagi Tetap Masuk'}
-                    </span>
-                  )}
+                  <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-teal-200/80 text-teal-900 border border-teal-300 self-start sm:self-auto shrink-0">
+                    {holidayCheckTahfidz.isTahfidzSoreHoliday ? 'Hanya Sesi Pagi' : 'Hanya Sesi Sore'}
+                  </span>
                 </div>
               )}
 
               {/* Tabel Presensi Tahfidz */}
-              {tahfidzTeachersToday.length === 0 ? (
+              {holidayCheckTahfidz.isHoliday && !holidayCheckTahfidz.isTahfidzPartial ? (
+                <div className="py-12 px-4 text-center">
+                  <div className="w-12 h-12 rounded-2xl bg-teal-50 text-teal-700 flex items-center justify-center mx-auto mb-3 border border-teal-200 shadow-2xs">
+                    <CalendarOff className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Hari Ini Libur Tahfidz: {holidayCheckTahfidz.holiday?.title || 'Agenda Libur'}
+                  </h3>
+                  <p className="text-xs text-slate-600 mt-1 max-w-md mx-auto">
+                    Jadwal presensi tahfidz otomatis tidak ditampilkan karena tercatat pada menu Hari Libur.
+                  </p>
+                  {holidayCheckTahfidz.holiday?.description && (
+                    <p className="text-xs text-slate-400 mt-1.5 italic">
+                      "{holidayCheckTahfidz.holiday.description}"
+                    </p>
+                  )}
+                </div>
+              ) : tahfidzTeachersToday.length === 0 ? (
                 <div className="py-10 text-center text-xs text-slate-500">
                   <AlertCircle className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                   <p className="font-semibold text-slate-700">Tidak ada jadwal jam tahfidz pada hari {selectedDay}</p>
-                  <p className="mt-1 text-slate-400">Hari ini libur tahfidz untuk seluruh guru.</p>
+                  <p className="mt-1 text-slate-400">Hari ini tidak ada jam tahfidz terjadwal.</p>
                 </div>
               ) : (
                 <>
                   {/* TAMPILAN KHUSUS MOBILE APP (sm:hidden) - Desain Simpel, Kompak & Cepat */}
                   <div className="divide-y divide-slate-100 sm:hidden">
                     {tahfidzTeachersToday.map((sch, index) => {
-                      const hours = storage.getTeacherHoursOnDay(sch, selectedDay);
+                      const hours = storage.getEffectiveTeacherHoursOnDate(sch, quickDate, selectedDay);
                       const record = dailyAttendance.find(a => a.teacherId === sch.teacherId);
                       const actualTahfidz = record?.actualTahfidz ?? 0;
                       const targetTahfidz = hours.tahfidz;
@@ -689,7 +731,7 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0">
                               <span className="bg-teal-50 text-teal-800 text-[11px] font-bold px-2 py-0.5 rounded-md border border-teal-200/80">
-                                {targetTahfidz} Jam
+                                {targetTahfidz} Jam {holidayCheckTahfidz.isTahfidzPartial ? (holidayCheckTahfidz.isTahfidzSoreHoliday ? '(Pagi)' : '(Sore)') : ''}
                               </span>
                               <span
                                 className={`px-2 py-0.5 rounded-md text-[11px] font-bold font-mono ${
@@ -739,10 +781,6 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                                 const slotStatus = record?.tahfidzSlots?.[slotIdx] || 'belum_absen';
                                 const slotLabel = getTahfidzSlotLabel(slotIdx, targetTahfidz);
                                 const shortLabel = getTahfidzSlotShortLabel(slotIdx, targetTahfidz);
-                                const isSlotHoliday = (targetTahfidz === 2) && (
-                                  (slotIdx === 0 && holidayCheckTahfidz.isTahfidzPagiHoliday) ||
-                                  (slotIdx === 1 && holidayCheckTahfidz.isTahfidzSoreHoliday)
-                                );
 
                                 return (
                                   <button
@@ -755,8 +793,6 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                                         ? 'bg-teal-600 border-teal-600 text-white'
                                         : slotStatus === 'tidak_hadir'
                                         ? 'bg-rose-600 border-rose-600 text-white'
-                                        : isSlotHoliday
-                                        ? 'bg-amber-50/70 border-amber-300 text-amber-800'
                                         : 'bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100'
                                     }`}
                                   >
@@ -790,7 +826,7 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {tahfidzTeachersToday.map((sch, index) => {
-                          const hours = storage.getTeacherHoursOnDay(sch, selectedDay);
+                          const hours = storage.getEffectiveTeacherHoursOnDate(sch, quickDate, selectedDay);
                           const record = dailyAttendance.find(a => a.teacherId === sch.teacherId);
                           const actualTahfidz = record?.actualTahfidz ?? 0;
                           const targetTahfidz = hours.tahfidz;
@@ -811,6 +847,11 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                               <td className="py-3 px-3 text-center whitespace-nowrap font-mono font-bold text-teal-900">
                                 <span className="bg-teal-50 text-teal-800 px-2.5 py-1 rounded-lg border border-teal-200/80">
                                   {targetTahfidz} Jam
+                                  {holidayCheckTahfidz.isTahfidzPartial && (
+                                    <span className="block text-[10px] text-teal-600 font-normal">
+                                      ({holidayCheckTahfidz.isTahfidzSoreHoliday ? 'Sesi Pagi Saja' : 'Sesi Sore Saja'})
+                                    </span>
+                                  )}
                                 </span>
                               </td>
 
@@ -820,10 +861,6 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                                   {Array.from({ length: targetTahfidz }).map((_, slotIdx) => {
                                     const slotStatus = record?.tahfidzSlots?.[slotIdx] || 'belum_absen';
                                     const slotLabel = getTahfidzSlotLabel(slotIdx, targetTahfidz);
-                                    const isSlotHoliday = (targetTahfidz === 2) && (
-                                      (slotIdx === 0 && holidayCheckTahfidz.isTahfidzPagiHoliday) ||
-                                      (slotIdx === 1 && holidayCheckTahfidz.isTahfidzSoreHoliday)
-                                    );
 
                                     return (
                                       <button
@@ -836,8 +873,6 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                                             ? 'bg-teal-600 border-teal-600 text-white hover:bg-teal-700'
                                             : slotStatus === 'tidak_hadir'
                                             ? 'bg-rose-600 border-rose-600 text-white hover:bg-rose-700'
-                                            : isSlotHoliday
-                                            ? 'bg-amber-50/70 border-amber-300 text-amber-800 hover:bg-amber-100'
                                             : 'bg-white border-slate-300 text-slate-600 hover:border-slate-400 hover:bg-slate-50'
                                         }`}
                                       >

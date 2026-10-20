@@ -587,6 +587,14 @@ export const HariLiburView: React.FC<HariLiburViewProps> = ({
                   >
                     Hanya Mengajar Libur
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => handleApplyPreset(['tahfidz_sore'])}
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-300 transition cursor-pointer flex items-center gap-1"
+                  >
+                    <span>Tahfidz Sore Saja Libur</span>
+                    <span className="text-[9px] bg-amber-700 text-white px-1 py-0.2 rounded font-mono">Pagi Masuk (1 Jam)</span>
+                  </button>
                 </div>
 
                 {/* 3 Interactive Multi-Select Checkbox Cards */}
