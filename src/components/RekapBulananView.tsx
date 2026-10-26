@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Download, Search, Filter, Calendar, BarChart3, TrendingUp, AlertCircle, CheckCircle } from 'lucide-react';
 import { MonthlyRecapRow, RecapStatus } from '../types';
 import { exportMonthlyRecapExcel } from '../services/excelService';
@@ -17,6 +17,18 @@ export const RekapBulananView: React.FC<RekapBulananViewProps> = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('Semua');
 
+  const [recapData, setRecapData] = useState<MonthlyRecapRow[]>(() =>
+    storage.getMonthlyRecap(selectedYear, selectedMonth)
+  );
+
+  useEffect(() => {
+    setRecapData(storage.getMonthlyRecap(selectedYear, selectedMonth));
+    const unsubscribe = storage.subscribe(() => {
+      setRecapData(storage.getMonthlyRecap(selectedYear, selectedMonth));
+    });
+    return unsubscribe;
+  }, [selectedYear, selectedMonth]);
+
   const monthOptions = [
     { value: 1, label: 'Januari' },
     { value: 2, label: 'Februari' },
@@ -34,11 +46,8 @@ export const RekapBulananView: React.FC<RekapBulananViewProps> = () => {
 
   const yearOptions = [2025, 2026, 2027];
 
-  // Ambil data rekap bulanan dari storage
-  const allRows: MonthlyRecapRow[] = storage.getMonthlyRecap(selectedYear, selectedMonth);
-
   // Filter
-  const filteredRows = allRows.filter(row => {
+  const filteredRows = recapData.filter(row => {
     if (statusFilter !== 'Semua' && row.status !== statusFilter) return false;
     if (searchQuery.trim()) {
       if (!row.teacherName.toLowerCase().includes(searchQuery.toLowerCase())) return false;

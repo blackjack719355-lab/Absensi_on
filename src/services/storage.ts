@@ -412,8 +412,37 @@ class StorageRepository {
                 this.saveHolidays();
               }
               if (Array.isArray(result.data.attendances)) {
-                this.attendances = result.data.attendances;
-                this.saveAttendances();
+                const serverAtts = result.data.attendances as DailyAttendanceRecord[];
+                const attMap = new Map<string, DailyAttendanceRecord>();
+                // Masukkan data server
+                serverAtts.forEach((a: any) => {
+                  const { _id, ...clean } = a;
+                  attMap.set(clean.id, clean);
+                });
+                // Pertahankan data lokal jika lebih baru atau belum ada di server
+                this.attendances.forEach(localA => {
+                  const existing = attMap.get(localA.id);
+                  if (!existing) {
+                    attMap.set(localA.id, localA);
+                  } else {
+                    const localTime = new Date(localA.updatedAt || 0).getTime();
+                    const serverTime = new Date(existing.updatedAt || 0).getTime();
+                    if (localTime >= serverTime) {
+                      attMap.set(localA.id, localA);
+                    }
+                  }
+                });
+                this.attendances = Array.from(attMap.values());
+                this.saveAttendancesLocally();
+                // Jika ada data lokal yang belum tersimpan di server, upload ke server
+                const unpushed = this.attendances.filter(a => !serverAtts.some((s: any) => s.id === a.id));
+                if (unpushed.length > 0) {
+                  const cleanUnpushed = unpushed.map((a: any) => {
+                    const { _id, ...clean } = a;
+                    return clean;
+                  });
+                  this.apiPost('/attendance/batch', { records: cleanUnpushed });
+                }
               }
               this.syncAutomaticWeeklyHolidays();
               this.notifyListeners();
@@ -552,11 +581,20 @@ class StorageRepository {
     } catch {}
   }
 
-  private saveAttendances() {
+  private saveAttendancesLocally() {
     try {
       localStorage.setItem(STORAGE_KEY_ATTENDANCE, JSON.stringify(this.attendances));
     } catch {}
-    this.apiPost('/attendance/batch', { records: this.attendances });
+  }
+
+  public saveAttendances() {
+    this.saveAttendancesLocally();
+    const cleanRecords = this.attendances.map((a: any) => {
+      const { _id, ...clean } = a;
+      return clean;
+    });
+    this.apiPost('/attendance/batch', { records: cleanRecords });
+    this.notifyListeners();
   }
 
   private saveConfigLocally(config: Partial<MongoConfig>) {
@@ -1379,11 +1417,20 @@ class StorageRepository {
       }
 
       // Hitung realisasi murni dari input presensi guru yang tercatat
-      const teacherRecords = monthlyAttendances.filter(a => a.teacherId === sch.teacherId || a.teacherName === sch.teacherName);
+      const teacherRecords = monthlyAttendances.filter(a => 
+        (a.teacherId && a.teacherId === sch.teacherId) ||
+        (a.teacherName && sch.teacherName && a.teacherName.toLowerCase().trim() === sch.teacherName.toLowerCase().trim())
+      );
       let actualTeaching = 0;
       let actualTahfidz = 0;
 
+      // Dedup per tanggal agar per tanggal tidak terhitung ganda
+      const recordsByDate = new Map<string, DailyAttendanceRecord>();
       teacherRecords.forEach(rec => {
+        recordsByDate.set(rec.date, rec);
+      });
+
+      recordsByDate.forEach(rec => {
         if (typeof rec.actualMengajar === 'number') {
           actualTeaching += rec.actualMengajar;
         } else if (rec.status === 'hadir') {

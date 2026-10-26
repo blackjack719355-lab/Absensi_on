@@ -374,7 +374,17 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
             </div>
 
             {/* Tombol Aksi Cepat Kontekstual Sesuai Pilihan */}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleMarkAllHadir}
+                className="px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 transition cursor-pointer shadow-xs flex items-center gap-1.5"
+                title="Tandai semua guru hadir baik mengajar maupun tahfidz pada hari ini"
+              >
+                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                <span>Hadirkan Semua (KBM & Tahfidz)</span>
+              </button>
+
               {sectionFilter === 'mengajar' ? (
                 <>
                   <button
@@ -606,6 +616,19 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                               {/* Checkbox Sesuai Jumlah Jam Mengajar Hari Ini */}
                               <td className="py-3 px-4">
                                 <div className="flex flex-wrap items-center justify-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSetTeacherSlots(sch.teacherId, 'mengajar', actualMengajar === targetMengajar && targetMengajar > 0 ? 'belum_absen' : 'hadir')}
+                                    className={`h-9 px-2.5 rounded-xl border flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer text-xs font-semibold shrink-0 ${
+                                      actualMengajar === targetMengajar && targetMengajar > 0
+                                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200'
+                                        : 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100'
+                                    }`}
+                                    title={actualMengajar === targetMengajar && targetMengajar > 0 ? 'Klik untuk reset' : 'Klik untuk hadirkan semua jam'}
+                                  >
+                                    <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                    <span>{actualMengajar === targetMengajar && targetMengajar > 0 ? 'Hadir Semua' : 'Set Hadir'}</span>
+                                  </button>
                                   {Array.from({ length: targetMengajar }).map((_, slotIdx) => {
                                     const slotStatus = record?.mengajarSlots?.[slotIdx] || 'belum_absen';
                                     return (
@@ -858,6 +881,19 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                               {/* Checkbox Sesuai Jumlah Jam Tahfidz Hari Ini */}
                               <td className="py-3 px-4">
                                 <div className="flex flex-wrap items-center justify-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSetTeacherSlots(sch.teacherId, 'tahfidz', actualTahfidz === targetTahfidz && targetTahfidz > 0 ? 'belum_absen' : 'hadir')}
+                                    className={`h-9 px-2.5 rounded-xl border flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer text-xs font-semibold shrink-0 ${
+                                      actualTahfidz === targetTahfidz && targetTahfidz > 0
+                                        ? 'bg-teal-100 text-teal-800 border-teal-300 hover:bg-teal-200'
+                                        : 'bg-teal-50 text-teal-800 border-teal-200 hover:bg-teal-100'
+                                    }`}
+                                    title={actualTahfidz === targetTahfidz && targetTahfidz > 0 ? 'Klik untuk reset' : 'Klik untuk hadirkan semua jam'}
+                                  >
+                                    <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                    <span>{actualTahfidz === targetTahfidz && targetTahfidz > 0 ? 'Hadir Semua' : 'Set Hadir'}</span>
+                                  </button>
                                   {Array.from({ length: targetTahfidz }).map((_, slotIdx) => {
                                     const slotStatus = record?.tahfidzSlots?.[slotIdx] || 'belum_absen';
                                     const slotLabel = getTahfidzSlotLabel(slotIdx, targetTahfidz);

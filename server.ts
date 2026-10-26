@@ -455,12 +455,13 @@ async function startServer() {
     if (!record || !record.id) return res.status(400).json({ error: 'Data presensi tidak valid' });
 
     try {
+      const { _id, ...cleanRecord } = record;
       await currentDb.collection('attendances').updateOne(
-        { id: record.id },
-        { $set: record },
+        { id: cleanRecord.id },
+        { $set: cleanRecord },
         { upsert: true }
       );
-      res.json({ success: true, record });
+      res.json({ success: true, record: cleanRecord });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
@@ -472,13 +473,16 @@ async function startServer() {
     if (!Array.isArray(records)) return res.status(400).json({ error: 'Records must be array' });
 
     try {
-      const operations = records.map((rec: any) => ({
-        updateOne: {
-          filter: { id: rec.id },
-          update: { $set: rec },
-          upsert: true,
-        },
-      }));
+      const operations = records.map((rec: any) => {
+        const { _id, ...cleanRec } = rec;
+        return {
+          updateOne: {
+            filter: { id: cleanRec.id },
+            update: { $set: cleanRec },
+            upsert: true,
+          },
+        };
+      });
       if (operations.length > 0) {
         await currentDb.collection('attendances').bulkWrite(operations);
       }

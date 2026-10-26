@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Download, Search, FileSpreadsheet, Calendar, TrendingUp, AlertCircle, Award } from 'lucide-react';
 import { YearlyReportRow } from '../types';
 import { exportYearlyReportExcel } from '../services/excelService';
@@ -14,13 +14,22 @@ export const LaporanTahunanView: React.FC<LaporanTahunanViewProps> = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('Semua');
 
+  const [yearlyData, setYearlyData] = useState<YearlyReportRow[]>(() =>
+    storage.getYearlyReport(selectedYear)
+  );
+
+  useEffect(() => {
+    setYearlyData(storage.getYearlyReport(selectedYear));
+    const unsubscribe = storage.subscribe(() => {
+      setYearlyData(storage.getYearlyReport(selectedYear));
+    });
+    return unsubscribe;
+  }, [selectedYear]);
+
   const yearOptions = [2025, 2026, 2027];
 
-  // Ambil data laporan tahunan dari storage
-  const allRows: YearlyReportRow[] = storage.getYearlyReport(selectedYear);
-
   // Filter
-  const filteredRows = allRows.filter(row => {
+  const filteredRows = yearlyData.filter(row => {
     if (statusFilter !== 'Semua' && row.status !== statusFilter) return false;
     if (searchQuery.trim()) {
       if (!row.teacherName.toLowerCase().includes(searchQuery.toLowerCase())) return false;
