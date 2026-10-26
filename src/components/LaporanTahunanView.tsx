@@ -9,7 +9,8 @@ interface LaporanTahunanViewProps {
 }
 
 export const LaporanTahunanView: React.FC<LaporanTahunanViewProps> = () => {
-  const currentYear = 2026;
+  const today = new Date();
+  const currentYear = today.getFullYear();
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('Semua');
@@ -26,7 +27,7 @@ export const LaporanTahunanView: React.FC<LaporanTahunanViewProps> = () => {
     return unsubscribe;
   }, [selectedYear]);
 
-  const yearOptions = [2025, 2026, 2027];
+  const yearOptions = [2024, 2025, 2026, 2027, 2028];
 
   // Filter
   const filteredRows = yearlyData.filter(row => {

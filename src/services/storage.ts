@@ -315,25 +315,16 @@ class StorageRepository {
         this.saveHolidays();
       }
 
-      // Pastikan presensi bersih dari data dummy: 100% murni dari input pengguna
-      const cleanVer = localStorage.getItem('absensi_on_clean_version');
-      if (cleanVer !== 'v2_clean_attendances') {
-        this.attendances = [];
-        this.saveAttendances();
-        localStorage.setItem('absensi_on_clean_version', 'v2_clean_attendances');
-      } else {
-        const savedAttendance = localStorage.getItem(STORAGE_KEY_ATTENDANCE);
-        if (savedAttendance) {
-          try {
-            const parsed = JSON.parse(savedAttendance);
-            this.attendances = Array.isArray(parsed) ? parsed : [];
-          } catch {
-            this.attendances = [];
-          }
-        } else {
+      const savedAttendance = localStorage.getItem(STORAGE_KEY_ATTENDANCE);
+      if (savedAttendance) {
+        try {
+          const parsed = JSON.parse(savedAttendance);
+          this.attendances = Array.isArray(parsed) ? parsed : [];
+        } catch {
           this.attendances = [];
-          this.saveAttendances();
         }
+      } else {
+        this.attendances = [];
       }
 
       const savedConfig = localStorage.getItem(STORAGE_KEY_CONFIG);
@@ -344,11 +335,11 @@ class StorageRepository {
       this.teachers = INITIAL_TEACHERS;
       this.schedules = INITIAL_SCHEDULES;
       this.holidays = INITIAL_HOLIDAYS;
-      this.attendances = this.generateSampleAttendances();
+      this.attendances = [];
     }
 
     this.syncAutomaticWeeklyHolidays();
-    // Sinkronisasi otomatis dengan backend MongoDB
+    // Sinkronisasi otomatis dengan database MongoDB Atlas (sumber kebenaran persisten)
     this.syncWithBackend();
   }
 
@@ -383,11 +374,11 @@ class StorageRepository {
                           (statusData.counts?.holidays || 0);
 
         if (totalDocs === 0) {
-          // Jika database MongoDB masih kosong melompong baru dibuat,
-          // otomatis kirimkan data awal lokal ke MongoDB
+          // Jika database MongoDB benar-benar baru dibuat dan masih 0 dokumen sama sekali,
+          // kirimkan dataset awal guru & jadwal ke MongoDB
           await this.pushAllToMongo();
         } else {
-          // Ambil data terbaru dari MongoDB ke memori lokal
+          // Ambil seluruh data terbaru dari MongoDB Atlas ke memori aplikasi
           const dataRes = await fetch('/api/data');
           if (dataRes.ok) {
             const dataText = await dataRes.text();
@@ -402,7 +393,7 @@ class StorageRepository {
                 this.schedules = result.data.schedules;
                 this.saveSchedules();
               }
-              if (Array.isArray(result.data.teachers)) {
+              if (Array.isArray(result.data.teachers) && result.data.teachers.length > 0) {
                 const scheduleNames = new Set(this.schedules.map(s => s.teacherName.toLowerCase().trim()));
                 this.teachers = (result.data.teachers as Teacher[]).filter((t: Teacher) => scheduleNames.has((t.name || '').toLowerCase().trim()));
                 this.saveTeachers();
@@ -414,27 +405,30 @@ class StorageRepository {
               if (Array.isArray(result.data.attendances)) {
                 const serverAtts = result.data.attendances as DailyAttendanceRecord[];
                 const attMap = new Map<string, DailyAttendanceRecord>();
-                // Masukkan data server
+                // 1. Masukkan semua data dari MongoDB Atlas (sumber kebenaran persisten)
                 serverAtts.forEach((a: any) => {
                   const { _id, ...clean } = a;
-                  attMap.set(clean.id, clean);
+                  const key = clean.id || `${clean.date}_${clean.teacherId}`;
+                  attMap.set(key, clean);
                 });
-                // Pertahankan data lokal jika lebih baru atau belum ada di server
+                // 2. Gabungkan data lokal jika ada yang diinput saat offline
                 this.attendances.forEach(localA => {
-                  const existing = attMap.get(localA.id);
+                  const key = localA.id || `${localA.date}_${localA.teacherId}`;
+                  const existing = attMap.get(key);
                   if (!existing) {
-                    attMap.set(localA.id, localA);
+                    attMap.set(key, localA);
                   } else {
                     const localTime = new Date(localA.updatedAt || 0).getTime();
                     const serverTime = new Date(existing.updatedAt || 0).getTime();
-                    if (localTime >= serverTime) {
-                      attMap.set(localA.id, localA);
+                    if (localTime > serverTime) {
+                      attMap.set(key, localA);
                     }
                   }
                 });
                 this.attendances = Array.from(attMap.values());
                 this.saveAttendancesLocally();
-                // Jika ada data lokal yang belum tersimpan di server, upload ke server
+
+                // Jika ada data presensi lokal baru yang belum masuk server, upload ke server
                 const unpushed = this.attendances.filter(a => !serverAtts.some((s: any) => s.id === a.id));
                 if (unpushed.length > 0) {
                   const cleanUnpushed = unpushed.map((a: any) => {
@@ -1431,17 +1425,27 @@ class StorageRepository {
       });
 
       recordsByDate.forEach(rec => {
-        if (typeof rec.actualMengajar === 'number') {
-          actualTeaching += rec.actualMengajar;
+        // 1. Hitung jam mengajar hadir
+        let mengajarHadir = 0;
+        if (Array.isArray(rec.mengajarSlots) && rec.mengajarSlots.length > 0) {
+          mengajarHadir = rec.mengajarSlots.filter(s => s === 'hadir').length;
+        } else if (typeof rec.actualMengajar === 'number' && rec.actualMengajar > 0) {
+          mengajarHadir = rec.actualMengajar;
         } else if (rec.status === 'hadir') {
-          actualTeaching += rec.targetMengajar || 0;
+          mengajarHadir = rec.targetMengajar || 0;
         }
+        actualTeaching += mengajarHadir;
 
-        if (typeof rec.actualTahfidz === 'number') {
-          actualTahfidz += rec.actualTahfidz;
+        // 2. Hitung jam tahfidz hadir
+        let tahfidzHadir = 0;
+        if (Array.isArray(rec.tahfidzSlots) && rec.tahfidzSlots.length > 0) {
+          tahfidzHadir = rec.tahfidzSlots.filter(s => s === 'hadir').length;
+        } else if (typeof rec.actualTahfidz === 'number' && rec.actualTahfidz > 0) {
+          tahfidzHadir = rec.actualTahfidz;
         } else if (rec.status === 'hadir') {
-          actualTahfidz += rec.targetTahfidz || 0;
+          tahfidzHadir = rec.targetTahfidz || 0;
         }
+        actualTahfidz += tahfidzHadir;
       });
 
       const totalTarget = targetTeaching + targetTahfidz;
@@ -1482,7 +1486,7 @@ class StorageRepository {
   // HITUNG LAPORAN TAHUNAN
   public getYearlyReport(year: number): YearlyReportRow[] {
     const periodName = `Tahun ${year}`;
-    const maxMonth = year === 2026 ? 10 : 12;
+    const maxMonth = 12;
 
     return this.schedules.map(sch => {
       let targetTotalHours = 0;

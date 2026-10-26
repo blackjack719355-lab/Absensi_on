@@ -336,35 +336,71 @@ async function startServer() {
     const { teachers, schedules, holidays, attendances } = req.body;
 
     try {
-      // Upsert teachers
+      // Upsert teachers safely (never delete existing data)
       if (Array.isArray(teachers) && teachers.length > 0) {
         const col = currentDb.collection('teachers');
-        await col.deleteMany({});
-        await col.insertMany(teachers);
+        const ops = teachers.map((t: any) => {
+          const { _id, ...clean } = t;
+          return {
+            updateOne: {
+              filter: { id: clean.id },
+              update: { $set: clean },
+              upsert: true,
+            },
+          };
+        });
+        await col.bulkWrite(ops);
       }
 
-      // Upsert schedules
+      // Upsert schedules safely (never delete existing data)
       if (Array.isArray(schedules) && schedules.length > 0) {
         const col = currentDb.collection('schedules');
-        await col.deleteMany({});
-        await col.insertMany(schedules);
+        const ops = schedules.map((s: any) => {
+          const { _id, ...clean } = s;
+          return {
+            updateOne: {
+              filter: { teacherId: clean.teacherId },
+              update: { $set: clean },
+              upsert: true,
+            },
+          };
+        });
+        await col.bulkWrite(ops);
       }
 
-      // Upsert holidays
+      // Upsert holidays safely (never delete existing data)
       if (Array.isArray(holidays) && holidays.length > 0) {
         const col = currentDb.collection('holidays');
-        await col.deleteMany({});
-        await col.insertMany(holidays);
+        const ops = holidays.map((h: any) => {
+          const { _id, ...clean } = h;
+          return {
+            updateOne: {
+              filter: { id: clean.id },
+              update: { $set: clean },
+              upsert: true,
+            },
+          };
+        });
+        await col.bulkWrite(ops);
       }
 
-      // Upsert attendances
+      // Upsert attendances safely (PERMANENT: Never delete existing attendances)
       if (Array.isArray(attendances) && attendances.length > 0) {
         const col = currentDb.collection('attendances');
-        await col.deleteMany({});
-        await col.insertMany(attendances);
+        const ops = attendances.map((rec: any) => {
+          const { _id, ...clean } = rec;
+          return {
+            updateOne: {
+              filter: { id: clean.id },
+              update: { $set: clean },
+              upsert: true,
+            },
+          };
+        });
+        await col.bulkWrite(ops);
       }
 
-      res.json({ success: true, message: 'Seluruh data berhasil disinkronkan ke MongoDB Atlas.' });
+      res.json({ success: true, message: 'Seluruh data berhasil disinkronkan ke MongoDB Atlas secara aman.' });
     } catch (err: any) {
       console.error('Error syncing data:', err);
       res.status(500).json({ success: false, error: err.message });

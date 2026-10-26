@@ -9,8 +9,9 @@ interface RekapBulananViewProps {
 }
 
 export const RekapBulananView: React.FC<RekapBulananViewProps> = () => {
-  const currentYear = 2026;
-  const currentMonth = 10; // Oktober
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  const currentMonth = today.getMonth() + 1;
 
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [selectedMonth, setSelectedMonth] = useState<number>(currentMonth);
@@ -44,7 +45,7 @@ export const RekapBulananView: React.FC<RekapBulananViewProps> = () => {
     { value: 12, label: 'Desember' },
   ];
 
-  const yearOptions = [2025, 2026, 2027];
+  const yearOptions = [2024, 2025, 2026, 2027, 2028];
 
   // Filter
   const filteredRows = recapData.filter(row => {
