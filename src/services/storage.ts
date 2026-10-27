@@ -343,115 +343,131 @@ class StorageRepository {
     this.syncWithBackend();
   }
 
-  // Cek status koneksi MongoDB di backend dan ambil data jika terhubung
-  public async syncWithBackend() {
-    try {
-      const res = await fetch('/api/db/status');
-      if (!res.ok) return;
-      const text = await res.text();
-      let statusData: any;
+  // Cek status koneksi MongoDB di backend dan ambil data jika terhubung (dengan auto-retry saat cold-start)
+  public async syncWithBackend(retries = 4, delayMs = 1500) {
+    for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        statusData = JSON.parse(text);
-      } catch {
-        return;
-      }
+        const res = await fetch('/api/db/status');
+        if (!res.ok) {
+          if ((res.status === 404 || res.status === 502 || res.status === 503) && attempt < retries) {
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+            continue;
+          }
+          return;
+        }
+        const text = await res.text();
+        let statusData: any;
+        try {
+          statusData = JSON.parse(text);
+        } catch {
+          if (attempt < retries) {
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+            continue;
+          }
+          return;
+        }
 
-      this.mongoConfig = {
-        databaseName: statusData.databaseName || this.mongoConfig.databaseName,
-        uri: statusData.uriMasked || this.mongoConfig.uri,
-        uriMasked: statusData.uriMasked,
-        status: statusData.connected ? 'connected' : 'offline_sync',
-        lastSyncedAt: new Date().toISOString(),
-        error: statusData.error || null,
-        counts: statusData.counts,
-      };
-      this.saveConfigLocally(this.mongoConfig);
-      this.notifyListeners();
+        this.mongoConfig = {
+          databaseName: statusData.databaseName || this.mongoConfig.databaseName,
+          uri: statusData.uriMasked || this.mongoConfig.uri,
+          uriMasked: statusData.uriMasked,
+          status: statusData.connected ? 'connected' : 'offline_sync',
+          lastSyncedAt: new Date().toISOString(),
+          error: statusData.error || null,
+          counts: statusData.counts,
+        };
+        this.saveConfigLocally(this.mongoConfig);
+        this.notifyListeners();
 
-      if (statusData.connected) {
-        const totalDocs = (statusData.counts?.teachers || 0) + 
-                          (statusData.counts?.schedules || 0) + 
-                          (statusData.counts?.holidays || 0);
+        if (statusData.connected) {
+          const totalDocs = (statusData.counts?.teachers || 0) + 
+                            (statusData.counts?.schedules || 0) + 
+                            (statusData.counts?.holidays || 0);
 
-        if (totalDocs === 0) {
-          // Jika database MongoDB benar-benar baru dibuat dan masih 0 dokumen sama sekali,
-          // kirimkan dataset awal guru & jadwal ke MongoDB
-          await this.pushAllToMongo();
-        } else {
-          // Ambil seluruh data terbaru dari MongoDB Atlas ke memori aplikasi
-          const dataRes = await fetch('/api/data');
-          if (dataRes.ok) {
-            const dataText = await dataRes.text();
-            let result: any = null;
-            try {
-              result = JSON.parse(dataText);
-            } catch {
-              result = null;
-            }
-            if (result && result.data) {
-              if (Array.isArray(result.data.schedules) && result.data.schedules.length > 0) {
-                this.schedules = result.data.schedules;
-                this.saveSchedules();
+          if (totalDocs === 0) {
+            // Jika database MongoDB benar-benar baru dibuat dan masih 0 dokumen sama sekali,
+            // kirimkan dataset awal guru & jadwal ke MongoDB
+            await this.pushAllToMongo();
+          } else {
+            // Ambil seluruh data terbaru dari MongoDB Atlas ke memori aplikasi
+            const dataRes = await fetch('/api/data');
+            if (dataRes.ok) {
+              const dataText = await dataRes.text();
+              let result: any = null;
+              try {
+                result = JSON.parse(dataText);
+              } catch {
+                result = null;
               }
-              if (Array.isArray(result.data.teachers) && result.data.teachers.length > 0) {
-                const scheduleNames = new Set(this.schedules.map(s => s.teacherName.toLowerCase().trim()));
-                this.teachers = (result.data.teachers as Teacher[]).filter((t: Teacher) => scheduleNames.has((t.name || '').toLowerCase().trim()));
-                this.saveTeachers();
-              }
-              if (Array.isArray(result.data.holidays) && result.data.holidays.length > 0) {
-                this.holidays = result.data.holidays;
-                this.saveHolidays();
-              }
-              if (Array.isArray(result.data.attendances)) {
-                const serverAtts = result.data.attendances as DailyAttendanceRecord[];
-                const attMap = new Map<string, DailyAttendanceRecord>();
-                // 1. Masukkan semua data dari MongoDB Atlas (sumber kebenaran persisten)
-                serverAtts.forEach((a: any) => {
-                  const { _id, ...clean } = a;
-                  const key = clean.id || `${clean.date}_${clean.teacherId}`;
-                  attMap.set(key, clean);
-                });
-                // 2. Gabungkan data lokal jika ada yang diinput saat offline
-                this.attendances.forEach(localA => {
-                  const key = localA.id || `${localA.date}_${localA.teacherId}`;
-                  const existing = attMap.get(key);
-                  if (!existing) {
-                    attMap.set(key, localA);
-                  } else {
-                    const localTime = new Date(localA.updatedAt || 0).getTime();
-                    const serverTime = new Date(existing.updatedAt || 0).getTime();
-                    if (localTime > serverTime) {
-                      attMap.set(key, localA);
-                    }
-                  }
-                });
-                this.attendances = Array.from(attMap.values());
-                this.saveAttendancesLocally();
-
-                // Jika ada data presensi lokal baru yang belum masuk server, upload ke server
-                const unpushed = this.attendances.filter(a => !serverAtts.some((s: any) => s.id === a.id));
-                if (unpushed.length > 0) {
-                  const cleanUnpushed = unpushed.map((a: any) => {
-                    const { _id, ...clean } = a;
-                    return clean;
-                  });
-                  this.apiPost('/attendance/batch', { records: cleanUnpushed });
+              if (result && result.data) {
+                if (Array.isArray(result.data.schedules) && result.data.schedules.length > 0) {
+                  this.schedules = result.data.schedules;
+                  this.saveSchedules();
                 }
+                if (Array.isArray(result.data.teachers) && result.data.teachers.length > 0) {
+                  const scheduleNames = new Set(this.schedules.map(s => s.teacherName.toLowerCase().trim()));
+                  this.teachers = (result.data.teachers as Teacher[]).filter((t: Teacher) => scheduleNames.has((t.name || '').toLowerCase().trim()));
+                  this.saveTeachers();
+                }
+                if (Array.isArray(result.data.holidays) && result.data.holidays.length > 0) {
+                  this.holidays = result.data.holidays;
+                  this.saveHolidays();
+                }
+                if (Array.isArray(result.data.attendances)) {
+                  const serverAtts = result.data.attendances as DailyAttendanceRecord[];
+                  const attMap = new Map<string, DailyAttendanceRecord>();
+                  // 1. Masukkan semua data dari MongoDB Atlas (sumber kebenaran persisten)
+                  serverAtts.forEach((a: any) => {
+                    const { _id, ...clean } = a;
+                    const key = clean.id || `${clean.date}_${clean.teacherId}`;
+                    attMap.set(key, clean);
+                  });
+                  // 2. Gabungkan data lokal jika ada yang diinput saat offline
+                  this.attendances.forEach(localA => {
+                    const key = localA.id || `${localA.date}_${localA.teacherId}`;
+                    const existing = attMap.get(key);
+                    if (!existing) {
+                      attMap.set(key, localA);
+                    } else {
+                      const localTime = new Date(localA.updatedAt || 0).getTime();
+                      const serverTime = new Date(existing.updatedAt || 0).getTime();
+                      if (localTime > serverTime) {
+                        attMap.set(key, localA);
+                      }
+                    }
+                  });
+                  this.attendances = Array.from(attMap.values());
+                  this.saveAttendancesLocally();
+
+                  // Jika ada data presensi lokal baru yang belum masuk server, upload ke server
+                  const unpushed = this.attendances.filter(a => !serverAtts.some((s: any) => s.id === a.id));
+                  if (unpushed.length > 0) {
+                    const cleanUnpushed = unpushed.map((a: any) => {
+                      const { _id, ...clean } = a;
+                      return clean;
+                    });
+                    this.apiPost('/attendance/batch', { records: cleanUnpushed });
+                  }
+                }
+                this.syncAutomaticWeeklyHolidays();
+                this.notifyListeners();
               }
-              this.syncAutomaticWeeklyHolidays();
-              this.notifyListeners();
             }
           }
         }
+        return; // Berhasil sinkronisasi
+      } catch (err) {
+        if (attempt < retries) {
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+          continue;
+        }
+        console.log('[Storage] Backend status check offline, menggunakan data lokal.');
       }
-    } catch (err) {
-      // Backend mungkin belum siap atau mode offline
-      console.log('[Storage] Backend status check offline, menggunakan data lokal.');
     }
   }
 
   // Hubungkan ke MongoDB dengan URI yang diinput pengguna (dengan auto-retry saat cold-start)
-  public async connectMongo(uri: string, databaseName: string, retries = 2): Promise<{ success: boolean; message?: string; error?: string }> {
+  public async connectMongo(uri: string, databaseName: string, retries = 5): Promise<{ success: boolean; message?: string; error?: string }> {
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
         const res = await fetch('/api/db/connect', {
@@ -459,20 +475,26 @@ class StorageRepository {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ uri, databaseName }),
         });
+
+        // Jika server masih cold-start / restarting setelah deploy (404/502/503), coba kembali dengan jeda
+        if ((res.status === 404 || res.status === 502 || res.status === 503) && attempt < retries) {
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          continue;
+        }
+
         const text = await res.text();
         let data: any = {};
         try {
           data = JSON.parse(text);
         } catch (parseErr) {
-          // Jika server masih cold-start / restarting (404/502/503), coba kembali dengan jeda
-          if (!res.ok && (res.status === 404 || res.status === 502 || res.status === 503) && attempt < retries) {
+          if (attempt < retries) {
             await new Promise(resolve => setTimeout(resolve, 1500));
             continue;
           }
           if (!res.ok) {
             return {
               success: false,
-              error: `Server backend merespons kode status ${res.status} (${res.statusText || 'Gagal memproses'}). Kemungkinan server sedang memulai ulang setelah proses deploy. Silakan coba beberapa detik lagi.`,
+              error: `Server backend merespons kode status ${res.status}. Server kemungkinan sedang memulai ulang proses deploy. Silakan coba beberapa detik lagi.`,
             };
           }
           return {

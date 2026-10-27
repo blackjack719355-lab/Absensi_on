@@ -198,12 +198,13 @@ process.on('SIGTERM', async () => {
 
 async function startServer() {
   const app = express();
-  const isProd = process.env.NODE_ENV === 'production';
+  const isCloudRun = !!process.env.K_SERVICE || process.env.NODE_ENV === 'production' || process.env.npm_lifecycle_event === 'start';
+  const isProd = isCloudRun;
   const isDev = !isProd;
   // Di dev container AI Studio (Nginx di 8080 mem-proxy ke 3000), dev server jalan di 3000.
-  // Di Cloud Run (mode produksi), gunakan process.env.PORT yang ditentukan sistem.
+  // Di Cloud Run (mode produksi), gunakan process.env.PORT (8080) yang ditentukan oleh Google Cloud.
   const PORT = parseInt(
-    (isProd ? process.env.PORT : (process.env.DEV_PORT || '3000')) || '3000',
+    (isProd && process.env.PORT ? process.env.PORT : (process.env.DEV_PORT || '3000')) || '3000',
     10
   );
 
