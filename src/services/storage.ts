@@ -265,9 +265,9 @@ class StorageRepository {
   private listeners: Array<() => void> = [];
   private mongoConfig: MongoConfig = {
     databaseName: 'absensi_on_db',
-    uri: 'mongodb+srv://blackjack719355_db_user:••••••••@cluster0.iercbv8.mongodb.net/absensi_on_db?retryWrites=true&w=majority',
-    uriMasked: 'mongodb+srv://blackjack719355_db_user:••••••••@cluster0.iercbv8.mongodb.net/absensi_on_db?retryWrites=true&w=majority',
-    status: 'connected',
+    uri: '',
+    uriMasked: '',
+    status: 'offline_sync',
     lastSyncedAt: new Date().toISOString(),
     error: null,
   };
@@ -373,7 +373,7 @@ class StorageRepository {
           uriMasked: statusData.uriMasked,
           status: statusData.connected ? 'connected' : 'offline_sync',
           lastSyncedAt: new Date().toISOString(),
-          error: statusData.error || null,
+          error: statusData.connected ? null : (statusData.error || null),
           counts: statusData.counts,
         };
         this.saveConfigLocally(this.mongoConfig);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Database, X, Check, Download, Upload, 
   ShieldCheck, ExternalLink, Copy, HelpCircle, Settings2,
@@ -34,7 +34,7 @@ export const MongoDbModal: React.FC<MongoDbModalProps> = ({
 
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectSuccess, setConnectSuccess] = useState<string | null>(null);
-  const [connectError, setConnectError] = useState<string | null>(config.error || null);
+  const [connectError, setConnectError] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const [copiedFormat, setCopiedFormat] = useState(false);
@@ -44,6 +44,24 @@ export const MongoDbModal: React.FC<MongoDbModalProps> = ({
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showClearAttendanceConfirm, setShowClearAttendanceConfirm] = useState(false);
+
+  // Sync state saat modal dibuka atau status berubah
+  useEffect(() => {
+    if (isOpen) {
+      storage.syncWithBackend().then(() => onRefreshData());
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (config.status === 'connected') {
+      setConnectError(null);
+    } else if (config.error) {
+      setConnectError(config.error);
+    }
+    if (config.uri && !uri) {
+      setUri(config.uri);
+    }
+  }, [config.status, config.error, config.uri]);
 
   if (!isOpen) return null;
 

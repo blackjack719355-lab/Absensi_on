@@ -15,16 +15,126 @@ const __dirname = path.dirname(__filename);
 
 const CONFIG_FILE = path.resolve(__dirname, '.mongodb-runtime.json');
 
-// Connection string bawaan langsung (hardcoded default agar selalu terhubung otomatis tanpa setting manual)
-const DEFAULT_MONGO_URI = 'mongodb+srv://blackjack719355_db_user:Sehat719355@cluster0.iercbv8.mongodb.net/absensi_on_db?retryWrites=true&w=majority';
-const DEFAULT_DB_NAME = 'absensi_on_db';
+// Connection string fallback from environment
+const DEFAULT_MONGO_URI = process.env.MONGODB_URI || '';
+const DEFAULT_DB_NAME = process.env.MONGODB_DB_NAME || 'absensi_on_db';
 
 interface MongoRuntimeConfig {
   uri: string;
   databaseName: string;
 }
 
-// Helper to load runtime config if previously saved via UI or fallback to embedded default
+// In-Memory Database Store (for container/offline execution and fallback)
+interface StoreData {
+  teachers: any[];
+  schedules: any[];
+  holidays: any[];
+  attendances: any[];
+}
+
+const memoryStore: StoreData = {
+  teachers: [],
+  schedules: [],
+  holidays: [],
+  attendances: [],
+};
+
+class InMemoryCollection {
+  constructor(private collectionName: keyof StoreData) {}
+
+  find(filter: any = {}, options: any = {}) {
+    let items = memoryStore[this.collectionName] || [];
+    if (filter && Object.keys(filter).length > 0) {
+      items = items.filter(item => {
+        return Object.entries(filter).every(([k, v]) => item[k] === v);
+      });
+    }
+    const cleanItems = items.map(item => {
+      const { _id, ...clean } = item;
+      return clean;
+    });
+    return {
+      toArray: async () => cleanItems,
+    };
+  }
+
+  async countDocuments(filter: any = {}) {
+    const res = this.find(filter);
+    const arr = await res.toArray();
+    return arr.length;
+  }
+
+  async updateOne(filter: any, update: any, options: { upsert?: boolean } = {}) {
+    if (!memoryStore[this.collectionName]) {
+      memoryStore[this.collectionName] = [];
+    }
+    const list = memoryStore[this.collectionName];
+    const idx = list.findIndex(item => {
+      return Object.entries(filter).every(([k, v]) => item[k] === v);
+    });
+
+    const setData = update?.$set || update || {};
+    if (idx >= 0) {
+      list[idx] = { ...list[idx], ...setData };
+      return { acknowledged: true, modifiedCount: 1, upsertedCount: 0 };
+    } else if (options.upsert) {
+      list.push({ ...filter, ...setData });
+      return { acknowledged: true, modifiedCount: 0, upsertedCount: 1 };
+    }
+    return { acknowledged: true, modifiedCount: 0, upsertedCount: 0 };
+  }
+
+  async deleteOne(filter: any) {
+    const list = memoryStore[this.collectionName] || [];
+    const idx = list.findIndex(item => {
+      return Object.entries(filter).every(([k, v]) => item[k] === v);
+    });
+    if (idx >= 0) {
+      list.splice(idx, 1);
+      return { acknowledged: true, deletedCount: 1 };
+    }
+    return { acknowledged: true, deletedCount: 0 };
+  }
+
+  async deleteMany(filter: any = {}) {
+    if (!filter || Object.keys(filter).length === 0) {
+      const count = (memoryStore[this.collectionName] || []).length;
+      memoryStore[this.collectionName] = [];
+      return { acknowledged: true, deletedCount: count };
+    }
+    const before = (memoryStore[this.collectionName] || []).length;
+    memoryStore[this.collectionName] = (memoryStore[this.collectionName] || []).filter(item => {
+      return !Object.entries(filter).every(([k, v]) => item[k] === v);
+    });
+    return { acknowledged: true, deletedCount: before - memoryStore[this.collectionName].length };
+  }
+
+  async bulkWrite(operations: any[]) {
+    for (const op of operations) {
+      if (op.updateOne) {
+        await this.updateOne(op.updateOne.filter, op.updateOne.update, { upsert: op.updateOne.upsert });
+      } else if (op.deleteOne) {
+        await this.deleteOne(op.deleteOne.filter);
+      }
+    }
+    return { acknowledged: true };
+  }
+}
+
+const inMemoryDb = {
+  collection(name: string) {
+    if (!(name in memoryStore)) {
+      (memoryStore as any)[name] = [];
+    }
+    return new InMemoryCollection(name as keyof StoreData);
+  },
+};
+
+function getActiveDb() {
+  return currentDb || inMemoryDb;
+}
+
+// Helper to load runtime config if previously saved via UI or fallback to environment
 function loadRuntimeConfig(): MongoRuntimeConfig {
   const envUri = process.env.MONGODB_URI || DEFAULT_MONGO_URI;
   const envDb = process.env.MONGODB_DB_NAME || DEFAULT_DB_NAME;
@@ -78,7 +188,6 @@ async function connectToMongo(uri: string, dbName: string): Promise<{ success: b
   }
 
   isConnecting = true;
-  lastError = null;
 
   try {
     let cleanUri = uri.trim();
@@ -91,7 +200,27 @@ async function connectToMongo(uri: string, dbName: string): Promise<{ success: b
       return { success: false, error: friendlyMessage };
     }
 
-    // 2. Deteksi & bersihkan otomatis jika pengguna tidak sengaja membungkus password atau username dengan kurung siku < >
+    // 2. Deteksi jika URI menggunakan teks sensor bintang/titik (••••••••) dari tampilan UI
+    if (cleanUri.includes('••••') || cleanUri.includes('***')) {
+      const existingUri = currentUri || process.env.MONGODB_URI || '';
+      if (existingUri) {
+        // Jika sudah ada koneksi aktif dan database dapat di-ping, konfirmasi koneksi masih sehat
+        if (mongoClient && currentDb) {
+          try {
+            await currentDb.command({ ping: 1 });
+            lastError = null;
+            return { success: true };
+          } catch {}
+        }
+        cleanUri = existingUri;
+      } else {
+        const friendlyMessage = 'Silakan masukkan password database asli Anda. Tanda sensor "••••••••" tidak dapat digunakan sebagai password.';
+        lastError = friendlyMessage;
+        return { success: false, error: friendlyMessage };
+      }
+    }
+
+    // 3. Deteksi & bersihkan otomatis jika pengguna tidak sengaja membungkus password atau username dengan kurung siku < >
     cleanUri = cleanUri.replace(/:\s*<([^>]+)>\s*@/, (match, pass) => {
       console.log('[MongoDB] Menghapus tanda kurung siku < > pada password secara otomatis.');
       return `:${encodeURIComponent(pass)}@`;
@@ -101,35 +230,34 @@ async function connectToMongo(uri: string, dbName: string): Promise<{ success: b
       return `//${encodeURIComponent(user)}:`;
     });
 
-    // Close existing client if any
-    if (mongoClient) {
-      try {
-        await mongoClient.close();
-      } catch {}
-      mongoClient = null;
-      currentDb = null;
-    }
-
     const client = new MongoClient(cleanUri, {
       serverApi: {
         version: ServerApiVersion.v1,
         strict: true,
         deprecationErrors: true,
       },
-      connectTimeoutMS: 8000,
-      serverSelectionTimeoutMS: 8000,
+      connectTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 5000,
     });
 
     await client.connect();
     
     // Ping to verify authentication and database access
-    const db = client.db(dbName || 'absensi_on_db');
+    const targetDbName = dbName || 'absensi_on_db';
+    const db = client.db(targetDbName);
     await db.command({ ping: 1 });
+
+    // Hanya tutup client lama setelah client baru berhasil terhubung
+    if (mongoClient && mongoClient !== client) {
+      try {
+        await mongoClient.close();
+      } catch {}
+    }
 
     mongoClient = client;
     currentDb = db;
     currentUri = cleanUri;
-    currentDbName = dbName || 'absensi_on_db';
+    currentDbName = targetDbName;
     lastError = null;
 
     saveRuntimeConfig({ uri: currentUri, databaseName: currentDbName });
@@ -137,7 +265,6 @@ async function connectToMongo(uri: string, dbName: string): Promise<{ success: b
     console.log(`[MongoDB] Berhasil terhubung ke database "${currentDbName}"`);
     return { success: true };
   } catch (err: any) {
-    // Gunakan console.warn agar validasi kredensial pengguna tidak dianggap crash server/container
     console.warn('[MongoDB] Percobaan koneksi belum berhasil:', err.message);
     let friendlyMessage = err.message;
 
@@ -156,11 +283,15 @@ async function connectToMongo(uri: string, dbName: string): Promise<{ success: b
   }
 }
 
-// Auto-connect to MongoDB immediately on startup (selalu terkoneksi langsung tanpa perlu setting manual)
+// Auto-connect to MongoDB if configured in environment
 export async function connectToMongoDB() {
   const config = loadRuntimeConfig();
-  console.log('[MongoDB] Menghubungkan langsung ke MongoDB Atlas...');
-  const res = await connectToMongo(config.uri || DEFAULT_MONGO_URI, config.databaseName || DEFAULT_DB_NAME);
+  if (!config.uri || !config.uri.trim()) {
+    console.log('[MongoDB] URI tidak diatur — database in-memory aktif secara otomatis.');
+    return null;
+  }
+  console.log('[MongoDB] Mencoba menghubungkan ke MongoDB Atlas...');
+  const res = await connectToMongo(config.uri, config.databaseName || DEFAULT_DB_NAME);
   if (res.success) {
     console.log('You successfully connected to MongoDB!');
   }
@@ -181,9 +312,9 @@ export async function disconnectFromMongoDB() {
   }
 }
 
-// Inisialisasi koneksi langsung saat server boot
+// Inisialisasi koneksi saat server boot jika URI ada
 connectToMongoDB().catch((err) => {
-  console.warn('[MongoDB] Percobaan koneksi awal:', err);
+  console.warn('[MongoDB] Info koneksi awal:', err.message || err);
 });
 
 process.on('SIGINT', async () => {
@@ -198,15 +329,9 @@ process.on('SIGTERM', async () => {
 
 async function startServer() {
   const app = express();
-  const isCloudRun = !!process.env.K_SERVICE || process.env.NODE_ENV === 'production' || process.env.npm_lifecycle_event === 'start';
-  const isProd = isCloudRun;
+  const isProd = !!process.env.K_SERVICE || process.env.NODE_ENV === 'production' || process.env.npm_lifecycle_event === 'start';
   const isDev = !isProd;
-  // Di dev container AI Studio (Nginx di 8080 mem-proxy ke 3000), dev server jalan di 3000.
-  // Di Cloud Run (mode produksi), gunakan process.env.PORT (8080) yang ditentukan oleh Google Cloud.
-  const PORT = parseInt(
-    (isProd && process.env.PORT ? process.env.PORT : (process.env.DEV_PORT || '3000')) || '3000',
-    10
-  );
+  const PORT = parseInt(process.env.PORT || '3000', 10);
 
   app.use(express.json({ limit: '10mb' }));
 
@@ -217,20 +342,19 @@ async function startServer() {
   // Get live DB status
   app.get('/api/db/status', async (req: Request, res: Response) => {
     const isConnected = !!(mongoClient && currentDb);
+    const activeDb = getActiveDb();
     let counts = { teachers: 0, schedules: 0, holidays: 0, attendances: 0 };
 
-    if (isConnected && currentDb) {
-      try {
-        const [teachers, schedules, holidays, attendances] = await Promise.all([
-          currentDb.collection('teachers').countDocuments(),
-          currentDb.collection('schedules').countDocuments(),
-          currentDb.collection('holidays').countDocuments(),
-          currentDb.collection('attendances').countDocuments(),
-        ]);
-        counts = { teachers, schedules, holidays, attendances };
-      } catch (e: any) {
-        console.warn('Gagal mengambil jumlah dokumen:', e.message);
-      }
+    try {
+      const [teachers, schedules, holidays, attendances] = await Promise.all([
+        activeDb.collection('teachers').countDocuments(),
+        activeDb.collection('schedules').countDocuments(),
+        activeDb.collection('holidays').countDocuments(),
+        activeDb.collection('attendances').countDocuments(),
+      ]);
+      counts = { teachers, schedules, holidays, attendances };
+    } catch (e: any) {
+      console.warn('Gagal mengambil jumlah dokumen:', e.message);
     }
 
     const config = loadRuntimeConfig();
@@ -243,6 +367,7 @@ async function startServer() {
       isConnecting,
       error: lastError,
       counts,
+      isInMemory: !isConnected,
     });
   });
 
@@ -299,23 +424,18 @@ async function startServer() {
 
   // GET ALL DATA (Teachers, Schedules, Holidays, Attendances)
   app.get('/api/data', async (req: Request, res: Response) => {
-    if (!currentDb) {
-      return res.status(503).json({
-        connected: false,
-        message: 'Database MongoDB belum terhubung.',
-      });
-    }
-
     try {
+      const db = getActiveDb();
       const [teachers, schedules, holidays, attendances] = await Promise.all([
-        currentDb.collection('teachers').find({}, { projection: { _id: 0 } }).toArray(),
-        currentDb.collection('schedules').find({}, { projection: { _id: 0 } }).toArray(),
-        currentDb.collection('holidays').find({}, { projection: { _id: 0 } }).toArray(),
-        currentDb.collection('attendances').find({}, { projection: { _id: 0 } }).toArray(),
+        db.collection('teachers').find({}, { projection: { _id: 0 } }).toArray(),
+        db.collection('schedules').find({}, { projection: { _id: 0 } }).toArray(),
+        db.collection('holidays').find({}, { projection: { _id: 0 } }).toArray(),
+        db.collection('attendances').find({}, { projection: { _id: 0 } }).toArray(),
       ]);
 
       res.json({
-        connected: true,
+        connected: !!currentDb,
+        inMemory: !currentDb,
         data: {
           teachers,
           schedules,
@@ -330,16 +450,13 @@ async function startServer() {
 
   // BATCH SYNC: Upload full dataset from client to MongoDB (e.g. initial sync or backup restore)
   app.post('/api/data/sync', async (req: Request, res: Response) => {
-    if (!currentDb) {
-      return res.status(503).json({ success: false, error: 'Database MongoDB belum terhubung.' });
-    }
-
     const { teachers, schedules, holidays, attendances } = req.body;
+    const db = getActiveDb();
 
     try {
       // Upsert teachers safely (never delete existing data)
       if (Array.isArray(teachers) && teachers.length > 0) {
-        const col = currentDb.collection('teachers');
+        const col = db.collection('teachers');
         const ops = teachers.map((t: any) => {
           const { _id, ...clean } = t;
           return {
@@ -355,7 +472,7 @@ async function startServer() {
 
       // Upsert schedules safely (never delete existing data)
       if (Array.isArray(schedules) && schedules.length > 0) {
-        const col = currentDb.collection('schedules');
+        const col = db.collection('schedules');
         const ops = schedules.map((s: any) => {
           const { _id, ...clean } = s;
           return {
@@ -371,7 +488,7 @@ async function startServer() {
 
       // Upsert holidays safely (never delete existing data)
       if (Array.isArray(holidays) && holidays.length > 0) {
-        const col = currentDb.collection('holidays');
+        const col = db.collection('holidays');
         const ops = holidays.map((h: any) => {
           const { _id, ...clean } = h;
           return {
@@ -387,7 +504,7 @@ async function startServer() {
 
       // Upsert attendances safely (PERMANENT: Never delete existing attendances)
       if (Array.isArray(attendances) && attendances.length > 0) {
-        const col = currentDb.collection('attendances');
+        const col = db.collection('attendances');
         const ops = attendances.map((rec: any) => {
           const { _id, ...clean } = rec;
           return {
@@ -401,7 +518,12 @@ async function startServer() {
         await col.bulkWrite(ops);
       }
 
-      res.json({ success: true, message: 'Seluruh data berhasil disinkronkan ke MongoDB Atlas secara aman.' });
+      res.json({
+        success: true,
+        message: currentDb
+          ? 'Seluruh data berhasil disinkronkan ke MongoDB Atlas secara aman.'
+          : 'Seluruh data berhasil disinkronkan ke database memori aplikasi.',
+      });
     } catch (err: any) {
       console.error('Error syncing data:', err);
       res.status(500).json({ success: false, error: err.message });
@@ -410,12 +532,12 @@ async function startServer() {
 
   // CRUD TEACHERS
   app.post('/api/teachers', async (req: Request, res: Response) => {
-    if (!currentDb) return res.status(503).json({ error: 'DB not connected' });
     const teacher = req.body;
     if (!teacher || !teacher.id) return res.status(400).json({ error: 'Data guru tidak valid' });
 
     try {
-      await currentDb.collection('teachers').updateOne(
+      const db = getActiveDb();
+      await db.collection('teachers').updateOne(
         { id: teacher.id },
         { $set: teacher },
         { upsert: true }
@@ -427,11 +549,11 @@ async function startServer() {
   });
 
   app.delete('/api/teachers/:id', async (req: Request, res: Response) => {
-    if (!currentDb) return res.status(503).json({ error: 'DB not connected' });
     const { id } = req.params;
     try {
-      await currentDb.collection('teachers').deleteOne({ id });
-      await currentDb.collection('schedules').deleteOne({ teacherId: id });
+      const db = getActiveDb();
+      await db.collection('teachers').deleteOne({ id });
+      await db.collection('schedules').deleteOne({ teacherId: id });
       res.json({ success: true });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -440,12 +562,12 @@ async function startServer() {
 
   // CRUD SCHEDULES
   app.post('/api/schedules', async (req: Request, res: Response) => {
-    if (!currentDb) return res.status(503).json({ error: 'DB not connected' });
     const schedule = req.body;
     if (!schedule || !schedule.teacherId) return res.status(400).json({ error: 'Data jadwal tidak valid' });
 
     try {
-      await currentDb.collection('schedules').updateOne(
+      const db = getActiveDb();
+      await db.collection('schedules').updateOne(
         { teacherId: schedule.teacherId },
         { $set: schedule },
         { upsert: true }
@@ -458,12 +580,12 @@ async function startServer() {
 
   // CRUD HOLIDAYS
   app.post('/api/holidays', async (req: Request, res: Response) => {
-    if (!currentDb) return res.status(503).json({ error: 'DB not connected' });
     const holiday = req.body;
     if (!holiday || !holiday.id) return res.status(400).json({ error: 'Data hari libur tidak valid' });
 
     try {
-      await currentDb.collection('holidays').updateOne(
+      const db = getActiveDb();
+      await db.collection('holidays').updateOne(
         { id: holiday.id },
         { $set: holiday },
         { upsert: true }
@@ -475,10 +597,10 @@ async function startServer() {
   });
 
   app.delete('/api/holidays/:id', async (req: Request, res: Response) => {
-    if (!currentDb) return res.status(503).json({ error: 'DB not connected' });
     const { id } = req.params;
     try {
-      await currentDb.collection('holidays').deleteOne({ id });
+      const db = getActiveDb();
+      await db.collection('holidays').deleteOne({ id });
       res.json({ success: true });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -487,13 +609,13 @@ async function startServer() {
 
   // CRUD ATTENDANCES
   app.post('/api/attendance', async (req: Request, res: Response) => {
-    if (!currentDb) return res.status(503).json({ error: 'DB not connected' });
     const record = req.body;
     if (!record || !record.id) return res.status(400).json({ error: 'Data presensi tidak valid' });
 
     try {
+      const db = getActiveDb();
       const { _id, ...cleanRecord } = record;
-      await currentDb.collection('attendances').updateOne(
+      await db.collection('attendances').updateOne(
         { id: cleanRecord.id },
         { $set: cleanRecord },
         { upsert: true }
@@ -505,11 +627,11 @@ async function startServer() {
   });
 
   app.post('/api/attendance/batch', async (req: Request, res: Response) => {
-    if (!currentDb) return res.status(503).json({ error: 'DB not connected' });
     const { records } = req.body;
     if (!Array.isArray(records)) return res.status(400).json({ error: 'Records must be array' });
 
     try {
+      const db = getActiveDb();
       const operations = records.map((rec: any) => {
         const { _id, ...cleanRec } = rec;
         return {
@@ -521,7 +643,7 @@ async function startServer() {
         };
       });
       if (operations.length > 0) {
-        await currentDb.collection('attendances').bulkWrite(operations);
+        await db.collection('attendances').bulkWrite(operations);
       }
       res.json({ success: true, count: operations.length });
     } catch (e: any) {
@@ -531,9 +653,9 @@ async function startServer() {
 
   // Hapus seluruh presensi (reset murni ke 0)
   app.post('/api/attendance/clear', async (req: Request, res: Response) => {
-    if (!currentDb) return res.status(503).json({ error: 'DB not connected' });
     try {
-      const result = await currentDb.collection('attendances').deleteMany({});
+      const db = getActiveDb();
+      const result = await db.collection('attendances').deleteMany({});
       res.json({ success: true, deletedCount: result.deletedCount, message: 'Seluruh data presensi berhasil dibersihkan.' });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -541,9 +663,9 @@ async function startServer() {
   });
 
   app.delete('/api/attendance', async (req: Request, res: Response) => {
-    if (!currentDb) return res.status(503).json({ error: 'DB not connected' });
     try {
-      const result = await currentDb.collection('attendances').deleteMany({});
+      const db = getActiveDb();
+      const result = await db.collection('attendances').deleteMany({});
       res.json({ success: true, deletedCount: result.deletedCount, message: 'Seluruh data presensi berhasil dibersihkan.' });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
