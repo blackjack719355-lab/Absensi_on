@@ -58,7 +58,7 @@ export const MongoDbModal: React.FC<MongoDbModalProps> = ({
     } else if (config.error) {
       setConnectError(config.error);
     }
-    if (config.uri && !uri) {
+    if (config.uri && !uri && !config.uri.includes('•••')) {
       setUri(config.uri);
     }
   }, [config.status, config.error, config.uri]);
@@ -339,13 +339,35 @@ export const MongoDbModal: React.FC<MongoDbModalProps> = ({
                 <div className="p-3.5 bg-rose-50 rounded-xl border border-rose-200 text-rose-900 text-xs space-y-2">
                   <div className="flex items-start gap-2">
                     <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                    <div>
+                    <div className="flex-1">
                       <p className="font-bold text-rose-950">
                         Gagal Terhubung ke MongoDB Atlas
                       </p>
                       <p className="text-[11px] leading-relaxed font-mono mt-1 text-rose-800 whitespace-pre-line">
                         {connectError}
                       </p>
+                      {(connectError.includes('404') || connectError.includes('memulai ulang') || connectError.includes('deploy')) && (
+                        <div className="mt-2.5 flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              setIsConnecting(true);
+                              await storage.syncWithBackend();
+                              onRefreshData();
+                              setIsConnecting(false);
+                              if (storage.getConfig().status === 'connected') {
+                                setConnectError(null);
+                                setConnectSuccess('Server telah online dan MongoDB Atlas terhubung!');
+                                setTimeout(() => setConnectSuccess(null), 4000);
+                              }
+                            }}
+                            className="px-3 py-1.5 bg-rose-700 hover:bg-rose-800 text-white font-semibold rounded-lg text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                          >
+                            <RefreshCw className={`w-3.5 h-3.5 ${isConnecting ? 'animate-spin' : ''}`} />
+                            <span>Cek Server Sekarang (Server Sudah Siap)</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
 

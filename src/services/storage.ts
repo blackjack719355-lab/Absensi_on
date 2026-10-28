@@ -369,13 +369,16 @@ class StorageRepository {
 
         this.mongoConfig = {
           databaseName: statusData.databaseName || this.mongoConfig.databaseName,
-          uri: statusData.uriMasked || this.mongoConfig.uri,
+          uri: this.mongoConfig.uri && !this.mongoConfig.uri.includes('•••') ? this.mongoConfig.uri : '',
           uriMasked: statusData.uriMasked,
           status: statusData.connected ? 'connected' : 'offline_sync',
           lastSyncedAt: new Date().toISOString(),
           error: statusData.connected ? null : (statusData.error || null),
           counts: statusData.counts,
         };
+        if (statusData.connected) {
+          this.mongoConfig.error = null;
+        }
         this.saveConfigLocally(this.mongoConfig);
         this.notifyListeners();
 
@@ -467,7 +470,17 @@ class StorageRepository {
   }
 
   // Hubungkan ke MongoDB dengan URI yang diinput pengguna (dengan auto-retry saat cold-start)
-  public async connectMongo(uri: string, databaseName: string, retries = 5): Promise<{ success: boolean; message?: string; error?: string }> {
+  public async connectMongo(uri: string, databaseName: string, retries = 6): Promise<{ success: boolean; message?: string; error?: string }> {
+    // 1. Jika pengguna mengirim URI yang dimasker (••••••••) dan database sudah tersambung
+    if (typeof uri === 'string' && (uri.includes('•••') || uri.includes('***'))) {
+      await this.syncWithBackend();
+      if (this.mongoConfig.status === 'connected') {
+        this.mongoConfig.error = null;
+        this.saveConfigLocally(this.mongoConfig);
+        return { success: true, message: 'Database MongoDB Atlas sudah terhubung dan aktif!' };
+      }
+    }
+
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
         const res = await fetch('/api/db/connect', {
@@ -491,6 +504,18 @@ class StorageRepository {
             await new Promise(resolve => setTimeout(resolve, 1500));
             continue;
           }
+          // Sebelum menyerah, cek apakah backend sebenarnya sudah hidup via /api/db/status
+          try {
+            const checkRes = await fetch('/api/db/status');
+            if (checkRes.ok) {
+              const checkData = await checkRes.json();
+              if (checkData.connected) {
+                await this.syncWithBackend();
+                return { success: true, message: 'Koneksi ke MongoDB Atlas berhasil!' };
+              }
+            }
+          } catch {}
+
           if (!res.ok) {
             return {
               success: false,
@@ -504,6 +529,7 @@ class StorageRepository {
         }
 
         if (res.ok && data.success) {
+          this.mongoConfig.error = null;
           await this.syncWithBackend();
           return { success: true, message: data.message };
         } else {

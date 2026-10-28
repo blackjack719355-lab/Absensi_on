@@ -373,12 +373,32 @@ async function startServer() {
 
   // Connect or Test connection with user-provided URI
   app.post('/api/db/connect', async (req: Request, res: Response) => {
-    const { uri, databaseName } = req.body;
+    let { uri, databaseName } = req.body;
     if (!uri) {
       return res.status(400).json({ success: false, error: 'URI MongoDB wajib diisi' });
     }
 
+    // Jika URI yang dikirim mengandung karakter bullet masker (••••••••)
+    // dan server sudah punya URI aktif yang valid di runtime config, gunakan URI aktif tersebut
+    if (typeof uri === 'string' && (uri.includes('•••') || uri.includes('***'))) {
+      const savedConfig = loadRuntimeConfig();
+      if (savedConfig.uri && !savedConfig.uri.includes('•••')) {
+        uri = savedConfig.uri;
+      }
+    }
+
     const dbName = databaseName || 'absensi_on_db';
+
+    // Jika server saat ini sudah terhubung ke database dan URI sama, langsung kembalikan sukses
+    if (mongoClient && currentDb && currentUri === uri && currentDbName === dbName) {
+      return res.json({
+        success: true,
+        message: 'Koneksi ke MongoDB Atlas aktif dan siap digunakan!',
+        databaseName: currentDbName,
+        uriMasked: maskUri(currentUri),
+      });
+    }
+
     const result = await connectToMongo(uri, dbName);
 
     if (result.success) {
