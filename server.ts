@@ -4,8 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import dotenv from 'dotenv';
-import { MongoClient, ServerApiVersion } from 'mongodb';
-import type { Db } from 'mongodb';
+import { Pool } from 'pg';
 
 // Load .env if present
 dotenv.config();
@@ -13,18 +12,17 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const CONFIG_FILE = path.resolve(__dirname, '.mongodb-runtime.json');
+const CONFIG_FILE = path.resolve(__dirname, '.supabase-runtime.json');
 
 // Connection string fallback from environment
-const DEFAULT_MONGO_URI = process.env.MONGODB_URI || '';
-const DEFAULT_DB_NAME = process.env.MONGODB_DB_NAME || 'absensi_on_db';
+const DEFAULT_CONNECTION_STRING = process.env.DATABASE_URL || process.env.SUPABASE_CONNECTION_STRING || 'postgresql://postgres:Sehat719355$@db.ugvxowesvhqjinmqdcje.supabase.co:5432/postgres';
 
-interface MongoRuntimeConfig {
-  uri: string;
-  databaseName: string;
+interface SupabaseRuntimeConfig {
+  connectionString: string;
+  databaseName?: string;
 }
 
-// In-Memory Database Store (for container/offline execution and fallback)
+// In-Memory Database Store (fallback)
 interface StoreData {
   teachers: any[];
   schedules: any[];
@@ -42,7 +40,7 @@ const memoryStore: StoreData = {
 class InMemoryCollection {
   constructor(private collectionName: keyof StoreData) {}
 
-  find(filter: any = {}, options: any = {}) {
+  find(filter: any = {}) {
     let items = memoryStore[this.collectionName] || [];
     if (filter && Object.keys(filter).length > 0) {
       items = items.filter(item => {
@@ -108,17 +106,6 @@ class InMemoryCollection {
     });
     return { acknowledged: true, deletedCount: before - memoryStore[this.collectionName].length };
   }
-
-  async bulkWrite(operations: any[]) {
-    for (const op of operations) {
-      if (op.updateOne) {
-        await this.updateOne(op.updateOne.filter, op.updateOne.update, { upsert: op.updateOne.upsert });
-      } else if (op.deleteOne) {
-        await this.deleteOne(op.deleteOne.filter);
-      }
-    }
-    return { acknowledged: true };
-  }
 }
 
 const inMemoryDb = {
@@ -130,201 +117,248 @@ const inMemoryDb = {
   },
 };
 
-function getActiveDb() {
-  return currentDb || inMemoryDb;
+// Global PostgreSQL Pool State
+let pgPool: Pool | null = null;
+let currentConnString = '';
+let isConnecting = false;
+let lastError: string | null = null;
+
+function maskConnectionString(str: string): string {
+  if (!str) return '';
+  return str.replace(/(:\/\/)([^:@]+):([^@]+)@/, '$1$2:••••••••@');
 }
 
-// Helper to load runtime config if previously saved via UI or fallback to environment
-function loadRuntimeConfig(): MongoRuntimeConfig {
-  const envUri = process.env.MONGODB_URI || DEFAULT_MONGO_URI;
-  const envDb = process.env.MONGODB_DB_NAME || DEFAULT_DB_NAME;
-
+function loadRuntimeConfig(): SupabaseRuntimeConfig {
   if (fs.existsSync(CONFIG_FILE)) {
     try {
       const data = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
-      if (data.uri && !data.uri.includes('username:password') && !data.uri.includes('cluster0.xxxxx')) {
-        return {
-          uri: data.uri,
-          databaseName: data.databaseName || envDb,
-        };
+      if (data.connectionString && !data.connectionString.includes('••••')) {
+        return data;
       }
     } catch (e) {
-      console.warn('Gagal membaca .mongodb-runtime.json:', e);
+      console.warn('Gagal membaca .supabase-runtime.json:', e);
     }
   }
 
   return {
-    uri: envUri,
-    databaseName: envDb,
+    connectionString: DEFAULT_CONNECTION_STRING,
+    databaseName: 'postgres',
   };
 }
 
-function saveRuntimeConfig(config: MongoRuntimeConfig) {
+function saveRuntimeConfig(config: SupabaseRuntimeConfig) {
   try {
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8');
   } catch (e) {
-    console.warn('Gagal menyimpan .mongodb-runtime.json:', e);
+    console.warn('Gagal menyimpan .supabase-runtime.json:', e);
   }
 }
 
-// Global MongoDB Connection State
-let mongoClient: MongoClient | null = null;
-let currentDb: Db | null = null;
-let currentUri = '';
-let currentDbName = '';
-let isConnecting = false;
-let lastError: string | null = null;
+// Ensure database tables exist in Supabase
+async function ensureTables(pool: Pool) {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS teachers (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        active BOOLEAN DEFAULT true,
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS schedules (
+        id TEXT PRIMARY KEY,
+        teacher_id TEXT NOT NULL,
+        teacher_name TEXT NOT NULL,
+        senin INT DEFAULT 0,
+        selasa INT DEFAULT 0,
+        rabu INT DEFAULT 0,
+        kamis INT DEFAULT 0,
+        jumat INT DEFAULT 0,
+        sabtu INT DEFAULT 0,
+        minggu INT DEFAULT 0,
+        tahfidz_senin INT DEFAULT 0,
+        tahfidz_selasa INT DEFAULT 0,
+        tahfidz_rabu INT DEFAULT 0,
+        tahfidz_kamis INT DEFAULT 0,
+        tahfidz_jumat INT DEFAULT 0,
+        tahfidz_sabtu INT DEFAULT 0,
+        tahfidz_minggu INT DEFAULT 0
+      );
+      CREATE TABLE IF NOT EXISTS holidays (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        type TEXT DEFAULT 'single',
+        start_date TEXT NOT NULL,
+        end_date TEXT,
+        day_of_week TEXT,
+        scope TEXT DEFAULT 'Untuk Semuanya',
+        is_automatic_weekly BOOLEAN DEFAULT false,
+        description TEXT,
+        sessions JSONB
+      );
+      CREATE TABLE IF NOT EXISTS attendances (
+        id TEXT PRIMARY KEY,
+        date TEXT NOT NULL,
+        teacher_id TEXT NOT NULL,
+        teacher_name TEXT NOT NULL,
+        status TEXT DEFAULT 'hadir',
+        target_mengajar INT DEFAULT 0,
+        actual_mengajar INT DEFAULT 0,
+        target_tahfidz INT DEFAULT 0,
+        actual_tahfidz INT DEFAULT 0,
+        mengajar_slots JSONB DEFAULT '[]'::jsonb,
+        tahfidz_slots JSONB DEFAULT '[]'::jsonb,
+        updated_at TIMESTAMPTZ DEFAULT now()
+      );
+    `);
+    console.log('[Supabase PG] Skema tabel PostgreSQL berhasil diverifikasi/dibuat.');
 
-// Mask URI for safe UI display (hide password)
-function maskUri(uri: string): string {
-  if (!uri) return '';
-  return uri.replace(/(:\/\/)([^:@]+):([^@]+)@/, '$1$2:••••••••@');
+    // Seed data awal jika tabel teachers masih kosong (database baru)
+    const countCheck = await pool.query('SELECT COUNT(*)::int as count FROM teachers');
+    if (countCheck.rows[0]?.count === 0) {
+      console.log('[Supabase PG] Database baru terdeteksi — menginisialisasi 16 guru & jadwal...');
+      const seedTeachers = [
+        { id: 't-1792055084401-418', name: 'Ust. Ridwan', active: true },
+        { id: 't-1792055084401-719', name: 'Ust. Muttaqin', active: true },
+        { id: 't-1792055084401-261', name: 'Ust. Aef', active: true },
+        { id: 't-1792055084401-998', name: 'Ust. Tiar', active: true },
+        { id: 't-1792055084401-695', name: 'Ust. Qoshidin', active: true },
+        { id: 't-1792055084401-521', name: 'Ust. Afrizal', active: true },
+        { id: 't-1792055084401-984', name: 'Ust. Hafiq', active: true },
+        { id: 't-1792055084401-10', name: 'Ust. Rahman', active: true },
+        { id: 't-1792055084401-392', name: 'Ust. Usamah', active: true },
+        { id: 't-1792055084401-404', name: 'Ust. Ade', active: true },
+        { id: 't-1792055084402-74', name: 'Ust. Muhsin', active: true },
+        { id: 't-1792055084402-781', name: 'Ust. Suryadi', active: true },
+        { id: 't-1792055084402-307', name: 'Ust. Husein', active: true },
+        { id: 't-1792055084402-290', name: 'Ust. Azzam', active: true },
+        { id: 't-1792055084402-230', name: 'Ust. Gilang', active: true },
+        { id: 't-1792055084402-819', name: 'Ust. Ahmad', active: true },
+      ];
+
+      for (const t of seedTeachers) {
+        await pool.query(
+          'INSERT INTO teachers (id, name, active) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING',
+          [t.id, t.name, t.active]
+        );
+      }
+
+      const seedSchedules = [
+        { id: 'sch-1792387830616-1', teacherId: 't-1792055084401-418', teacherName: 'Ust. Ridwan', senin: 0, selasa: 1, rabu: 1, kamis: 2, jumat: 0, sabtu: 2, minggu: 0, tahfidzSenin: 0, tahfidzSelasa: 0, tahfidzRabu: 0, tahfidzKamis: 0, tahfidzJumat: 0, tahfidzSabtu: 0, tahfidzMinggu: 0 },
+        { id: 'sch-1792387830616-2', teacherId: 't-1792055084401-719', teacherName: 'Ust. Muttaqin', senin: 2, selasa: 1, rabu: 2, kamis: 2, jumat: 0, sabtu: 1, minggu: 0, tahfidzSenin: 0, tahfidzSelasa: 0, tahfidzRabu: 0, tahfidzKamis: 0, tahfidzJumat: 0, tahfidzSabtu: 0, tahfidzMinggu: 0 },
+        { id: 'sch-1792387830616-3', teacherId: 't-1792055084401-261', teacherName: 'Ust. Aef', senin: 1, selasa: 2, rabu: 0, kamis: 2, jumat: 0, sabtu: 0, minggu: 2, tahfidzSenin: 2, tahfidzSelasa: 1, tahfidzRabu: 1, tahfidzKamis: 2, tahfidzJumat: 0, tahfidzSabtu: 2, tahfidzMinggu: 2 },
+        { id: 'sch-1792387830616-4', teacherId: 't-1792055084401-998', teacherName: 'Ust. Tiar', senin: 2, selasa: 2, rabu: 1, kamis: 0, jumat: 0, sabtu: 0, minggu: 0, tahfidzSenin: 0, tahfidzSelasa: 0, tahfidzRabu: 0, tahfidzKamis: 0, tahfidzJumat: 0, tahfidzSabtu: 0, tahfidzMinggu: 0 },
+        { id: 'sch-1792387830616-5', teacherId: 't-1792055084401-695', teacherName: 'Ust. Qoshidin', senin: 1, selasa: 0, rabu: 1, kamis: 1, jumat: 0, sabtu: 0, minggu: 1, tahfidzSenin: 2, tahfidzSelasa: 1, tahfidzRabu: 1, tahfidzKamis: 2, tahfidzJumat: 0, tahfidzSabtu: 2, tahfidzMinggu: 2 },
+        { id: 'sch-1792387830616-6', teacherId: 't-1792055084401-521', teacherName: 'Ust. Afrizal', senin: 0, selasa: 2, rabu: 0, kamis: 1, jumat: 0, sabtu: 0, minggu: 0, tahfidzSenin: 2, tahfidzSelasa: 1, tahfidzRabu: 1, tahfidzKamis: 2, tahfidzJumat: 0, tahfidzSabtu: 2, tahfidzMinggu: 2 },
+        { id: 'sch-1792387830616-7', teacherId: 't-1792055084401-984', teacherName: 'Ust. Hafiq', senin: 2, selasa: 1, rabu: 2, kamis: 1, jumat: 0, sabtu: 0, minggu: 0, tahfidzSenin: 2, tahfidzSelasa: 1, tahfidzRabu: 1, tahfidzKamis: 2, tahfidzJumat: 0, tahfidzSabtu: 2, tahfidzMinggu: 2 },
+        { id: 'sch-1792387830616-8', teacherId: 't-1792055084401-10', teacherName: 'Ust. Rahman', senin: 1, selasa: 2, rabu: 3, kamis: 2, jumat: 0, sabtu: 0, minggu: 0, tahfidzSenin: 2, tahfidzSelasa: 1, tahfidzRabu: 1, tahfidzKamis: 2, tahfidzJumat: 0, tahfidzSabtu: 2, tahfidzMinggu: 2 },
+        { id: 'sch-1792387830616-9', teacherId: 't-1792055084401-392', teacherName: 'Ust. Usamah', senin: 0, selasa: 0, rabu: 0, kamis: 0, jumat: 0, sabtu: 3, minggu: 3, tahfidzSenin: 2, tahfidzSelasa: 1, tahfidzRabu: 1, tahfidzKamis: 2, tahfidzJumat: 0, tahfidzSabtu: 2, tahfidzMinggu: 2 },
+        { id: 'sch-1792387830616-10', teacherId: 't-1792055084401-404', teacherName: 'Ust. Ade', senin: 1, selasa: 0, rabu: 0, kamis: 0, jumat: 0, sabtu: 2, minggu: 1, tahfidzSenin: 2, tahfidzSelasa: 1, tahfidzRabu: 1, tahfidzKamis: 2, tahfidzJumat: 0, tahfidzSabtu: 2, tahfidzMinggu: 2 },
+        { id: 'sch-1792387830616-11', teacherId: 't-1792055084402-74', teacherName: 'Ust. Muhsin', senin: 1, selasa: 0, rabu: 1, kamis: 0, jumat: 0, sabtu: 0, minggu: 1, tahfidzSenin: 2, tahfidzSelasa: 1, tahfidzRabu: 1, tahfidzKamis: 2, tahfidzJumat: 0, tahfidzSabtu: 2, tahfidzMinggu: 2 },
+        { id: 'sch-1792387830616-12', teacherId: 't-1792055084402-781', teacherName: 'Ust. Suryadi', senin: 0, selasa: 0, rabu: 0, kamis: 0, jumat: 0, sabtu: 0, minggu: 3, tahfidzSenin: 0, tahfidzSelasa: 0, tahfidzRabu: 0, tahfidzKamis: 0, tahfidzJumat: 0, tahfidzSabtu: 0, tahfidzMinggu: 0 },
+        { id: 'sch-1792387830616-13', teacherId: 't-1792055084402-307', teacherName: 'Ust. Husein', senin: 0, selasa: 0, rabu: 0, kamis: 0, jumat: 0, sabtu: 3, minggu: 0, tahfidzSenin: 2, tahfidzSelasa: 1, tahfidzRabu: 1, tahfidzKamis: 2, tahfidzJumat: 0, tahfidzSabtu: 2, tahfidzMinggu: 2 },
+        { id: 'sch-1792387830616-14', teacherId: 't-1792055084402-290', teacherName: 'Ust. Azzam', senin: 0, selasa: 0, rabu: 0, kamis: 0, jumat: 0, sabtu: 0, minggu: 0, tahfidzSenin: 2, tahfidzSelasa: 1, tahfidzRabu: 1, tahfidzKamis: 2, tahfidzJumat: 0, tahfidzSabtu: 2, tahfidzMinggu: 2 },
+        { id: 'sch-1792387830616-15', teacherId: 't-1792055084402-230', teacherName: 'Ust. Gilang', senin: 0, selasa: 0, rabu: 1, kamis: 0, jumat: 0, sabtu: 1, minggu: 1, tahfidzSenin: 0, tahfidzSelasa: 0, tahfidzRabu: 0, tahfidzKamis: 0, tahfidzJumat: 0, tahfidzSabtu: 0, tahfidzMinggu: 0 },
+        { id: 'sch-1792387830616-16', teacherId: 't-1792055084402-819', teacherName: 'Ust. Ahmad', senin: 1, selasa: 1, rabu: 0, kamis: 0, jumat: 0, sabtu: 0, minggu: 0, tahfidzSenin: 0, tahfidzSelasa: 0, tahfidzRabu: 0, tahfidzKamis: 0, tahfidzJumat: 0, tahfidzSabtu: 0, tahfidzMinggu: 0 },
+      ];
+
+      for (const s of seedSchedules) {
+        await pool.query(
+          `INSERT INTO schedules (
+            id, teacher_id, teacher_name, senin, selasa, rabu, kamis, jumat, sabtu, minggu,
+            tahfidz_senin, tahfidz_selasa, tahfidz_rabu, tahfidz_kamis, tahfidz_jumat, tahfidz_sabtu, tahfidz_minggu
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+          ON CONFLICT (id) DO NOTHING`,
+          [s.id, s.teacherId, s.teacherName, s.senin, s.selasa, s.rabu, s.kamis, s.jumat, s.sabtu, s.minggu, s.tahfidzSenin, s.tahfidzSelasa, s.tahfidzRabu, s.tahfidzKamis, s.tahfidzJumat, s.tahfidzSabtu, s.tahfidzMinggu]
+        );
+      }
+
+      await pool.query(
+        `INSERT INTO holidays (id, title, type, start_date, day_of_week, scope, is_automatic_weekly, description)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT (id) DO NOTHING`,
+        ['hol-weekly-jumat', "Libur Pekanan (Jum'at)", 'weekly', '2026-01-01', 'Jumat', 'Untuk Semuanya', true, "Otomatis ditandai sistem karena total jam mengajar & tahfidz adalah 0 pada hari Jumat"]
+      );
+      console.log('[Supabase PG] 16 guru & jadwal berhasil diinisialisasi ke Supabase PostgreSQL.');
+    }
+  } catch (err: any) {
+    console.warn('[Supabase PG] Warning saat ensureTables:', err.message);
+  }
 }
 
-// Connect to MongoDB function
-async function connectToMongo(uri: string, dbName: string): Promise<{ success: boolean; error?: string }> {
-  if (!uri || !uri.trim()) {
-    return { success: false, error: 'URI MongoDB tidak boleh kosong.' };
+// Connect to PostgreSQL / Supabase function
+async function connectToPostgres(connStr: string): Promise<{ success: boolean; error?: string }> {
+  if (!connStr || !connStr.trim()) {
+    return { success: false, error: 'Connection string PostgreSQL tidak boleh kosong.' };
   }
 
   isConnecting = true;
 
   try {
-    let cleanUri = uri.trim();
+    let cleanStr = connStr.trim();
 
-    // 1. Cek jika masih ada placeholder teks standar MongoDB Atlas
-    if (cleanUri.includes('<password>') || cleanUri.includes('<username>') || cleanUri.includes('<db_password>')) {
-      const friendlyMessage = 'URI masih memuat teks placeholder "<password>" atau "<username>". Ganti dengan username & password asli akun database Anda.';
-      lastError = friendlyMessage;
-      console.warn('[MongoDB] Percobaan koneksi:', friendlyMessage);
-      return { success: false, error: friendlyMessage };
-    }
-
-    // 2. Deteksi jika URI menggunakan teks sensor bintang/titik (••••••••) dari tampilan UI
-    if (cleanUri.includes('••••') || cleanUri.includes('***')) {
-      const existingUri = currentUri || process.env.MONGODB_URI || '';
-      if (existingUri) {
-        // Jika sudah ada koneksi aktif dan database dapat di-ping, konfirmasi koneksi masih sehat
-        if (mongoClient && currentDb) {
-          try {
-            await currentDb.command({ ping: 1 });
-            lastError = null;
-            return { success: true };
-          } catch {}
-        }
-        cleanUri = existingUri;
-      } else {
-        const friendlyMessage = 'Silakan masukkan password database asli Anda. Tanda sensor "••••••••" tidak dapat digunakan sebagai password.';
-        lastError = friendlyMessage;
-        return { success: false, error: friendlyMessage };
+    // If mask characters present, replace with existing connection string
+    if (cleanStr.includes('••••') || cleanStr.includes('***')) {
+      const saved = loadRuntimeConfig();
+      if (saved.connectionString && !saved.connectionString.includes('•••')) {
+        cleanStr = saved.connectionString;
       }
     }
 
-    // 3. Deteksi & bersihkan otomatis jika pengguna tidak sengaja membungkus password atau username dengan kurung siku < >
-    cleanUri = cleanUri.replace(/:\s*<([^>]+)>\s*@/, (match, pass) => {
-      console.log('[MongoDB] Menghapus tanda kurung siku < > pada password secara otomatis.');
-      return `:${encodeURIComponent(pass)}@`;
-    });
-    cleanUri = cleanUri.replace(/\/\/\s*<([^>]+)>\s*:/, (match, user) => {
-      console.log('[MongoDB] Menghapus tanda kurung siku < > pada username secara otomatis.');
-      return `//${encodeURIComponent(user)}:`;
+    const pool = new Pool({
+      connectionString: cleanStr,
+      ssl: { rejectUnauthorized: false },
+      connectionTimeoutMillis: 10000,
+      idleTimeoutMillis: 30000,
+      max: 10,
     });
 
-    const client = new MongoClient(cleanUri, {
-      serverApi: {
-        version: ServerApiVersion.v1,
-        strict: true,
-        deprecationErrors: true,
-      },
-      connectTimeoutMS: 5000,
-      serverSelectionTimeoutMS: 5000,
+    pool.on('error', (err) => {
+      console.error('[Supabase PG Pool Error]', err);
     });
 
-    await client.connect();
-    
-    // Ping to verify authentication and database access
-    const targetDbName = dbName || 'absensi_on_db';
-    const db = client.db(targetDbName);
-    await db.command({ ping: 1 });
+    // Test query
+    const res = await pool.query('SELECT current_database() as db, NOW() as now');
+    console.log('[Supabase PG] Berhasil terhubung ke database:', res.rows[0]);
 
-    // Hanya tutup client lama setelah client baru berhasil terhubung
-    if (mongoClient && mongoClient !== client) {
+    // Ensure all tables are created
+    await ensureTables(pool);
+
+    // Close old pool if replacing
+    if (pgPool && pgPool !== pool) {
       try {
-        await mongoClient.close();
+        await pgPool.end();
       } catch {}
     }
 
-    mongoClient = client;
-    currentDb = db;
-    currentUri = cleanUri;
-    currentDbName = targetDbName;
+    pgPool = pool;
+    currentConnString = cleanStr;
     lastError = null;
 
-    saveRuntimeConfig({ uri: currentUri, databaseName: currentDbName });
-
-    console.log(`[MongoDB] Berhasil terhubung ke database "${currentDbName}"`);
+    saveRuntimeConfig({ connectionString: currentConnString, databaseName: res.rows[0]?.db || 'postgres' });
     return { success: true };
   } catch (err: any) {
-    console.warn('[MongoDB] Percobaan koneksi belum berhasil:', err.message);
-    let friendlyMessage = err.message;
-
-    if (err.message?.includes('bad auth') || err.message?.includes('Authentication failed') || err.message?.includes('auth failed')) {
-      friendlyMessage = 'Autentikasi gagal (bad auth): Username atau Password MongoDB Atlas tidak cocok. Pastikan menggunakan Database User dari menu "Database Access" di Atlas (bukan email akun login Anda), dan pastikan tanda kurung siku < > sudah dihapus.';
-    } else if (err.message?.includes('Server selection timed out') || err.message?.includes('ETIMEDOUT') || err.message?.includes('ENOTFOUND')) {
-      friendlyMessage = 'Waktu koneksi habis (Timeout). Pastikan IP Address 0.0.0.0/0 (Allow Access from Anywhere) sudah ditambahkan di menu "Network Access" MongoDB Atlas.';
-    } else if (err.message?.includes('Invalid connection string') || err.message?.includes('Invalid scheme')) {
-      friendlyMessage = 'Format Connection String (URI) tidak valid. Pastikan berawalan mongodb+srv:// atau mongodb://.';
-    }
-
-    lastError = friendlyMessage;
-    return { success: false, error: friendlyMessage };
+    console.warn('[Supabase PG] Gagal terhubung:', err.message);
+    lastError = err.message || 'Gagal terhubung ke PostgreSQL Supabase.';
+    return { success: false, error: lastError || undefined };
   } finally {
     isConnecting = false;
   }
 }
 
-// Auto-connect to MongoDB if configured in environment
-export async function connectToMongoDB() {
+// Auto-connect to PostgreSQL on boot
+export async function initPostgres() {
   const config = loadRuntimeConfig();
-  if (!config.uri || !config.uri.trim()) {
-    console.log('[MongoDB] URI tidak diatur — database in-memory aktif secara otomatis.');
+  if (!config.connectionString) {
+    console.log('[Supabase PG] Connection string tidak diatur — database in-memory aktif.');
     return null;
   }
-  console.log('[MongoDB] Mencoba menghubungkan ke MongoDB Atlas...');
-  const res = await connectToMongo(config.uri, config.databaseName || DEFAULT_DB_NAME);
-  if (res.success) {
-    console.log('You successfully connected to MongoDB!');
-  }
-  return mongoClient;
+  console.log('[Supabase PG] Menghubungkan ke Supabase PostgreSQL...');
+  await connectToPostgres(config.connectionString);
+  return pgPool;
 }
 
-// Call this only when your application terminates
-export async function disconnectFromMongoDB() {
-  if (mongoClient) {
-    try {
-      await mongoClient.close();
-      console.log('You successfully disconnected from MongoDB!');
-    } catch (err) {
-      console.dir(err);
-    }
-    mongoClient = null;
-    currentDb = null;
-  }
-}
-
-// Inisialisasi koneksi saat server boot jika URI ada
-connectToMongoDB().catch((err) => {
-  console.warn('[MongoDB] Info koneksi awal:', err.message || err);
-});
-
-process.on('SIGINT', async () => {
-  await disconnectFromMongoDB();
-  process.exit(0);
-});
-
-process.on('SIGTERM', async () => {
-  await disconnectFromMongoDB();
-  process.exit(0);
+initPostgres().catch(err => {
+  console.warn('[Supabase PG] Info koneksi awal:', err.message || err);
 });
 
 async function startServer() {
@@ -336,34 +370,45 @@ async function startServer() {
   app.use(express.json({ limit: '10mb' }));
 
   // ==========================================
-  // API ROUTES: MONGODB CONFIG & STATUS
+  // API ROUTES: SUPABASE POSTGRES CONFIG & STATUS
   // ==========================================
 
-  // Get live DB status
-  app.get('/api/db/status', async (req: Request, res: Response) => {
-    const isConnected = !!(mongoClient && currentDb);
-    const activeDb = getActiveDb();
+  app.get('/api/supabase/status', async (req: Request, res: Response) => {
+    const isConnected = !!pgPool;
     let counts = { teachers: 0, schedules: 0, holidays: 0, attendances: 0 };
 
-    try {
-      const [teachers, schedules, holidays, attendances] = await Promise.all([
-        activeDb.collection('teachers').countDocuments(),
-        activeDb.collection('schedules').countDocuments(),
-        activeDb.collection('holidays').countDocuments(),
-        activeDb.collection('attendances').countDocuments(),
-      ]);
-      counts = { teachers, schedules, holidays, attendances };
-    } catch (e: any) {
-      console.warn('Gagal mengambil jumlah dokumen:', e.message);
+    if (isConnected && pgPool) {
+      try {
+        const [tRes, sRes, hRes, aRes] = await Promise.all([
+          pgPool.query('SELECT COUNT(*)::int as count FROM teachers'),
+          pgPool.query('SELECT COUNT(*)::int as count FROM schedules'),
+          pgPool.query('SELECT COUNT(*)::int as count FROM holidays'),
+          pgPool.query('SELECT COUNT(*)::int as count FROM attendances'),
+        ]);
+        counts = {
+          teachers: tRes.rows[0]?.count || 0,
+          schedules: sRes.rows[0]?.count || 0,
+          holidays: hRes.rows[0]?.count || 0,
+          attendances: aRes.rows[0]?.count || 0,
+        };
+      } catch (e: any) {
+        console.warn('[Supabase PG] Gagal menghitung data:', e.message);
+      }
+    } else {
+      counts = {
+        teachers: memoryStore.teachers.length,
+        schedules: memoryStore.schedules.length,
+        holidays: memoryStore.holidays.length,
+        attendances: memoryStore.attendances.length,
+      };
     }
 
     const config = loadRuntimeConfig();
 
     res.json({
       connected: isConnected,
-      databaseName: currentDbName || config.databaseName,
-      uriMasked: maskUri(currentUri || config.uri),
-      hasConfig: !!(currentUri || config.uri),
+      connectionStringMasked: maskConnectionString(currentConnString || config.connectionString),
+      hasConfig: !!(currentConnString || config.connectionString),
       isConnecting,
       error: lastError,
       counts,
@@ -371,42 +416,35 @@ async function startServer() {
     });
   });
 
-  // Connect or Test connection with user-provided URI
-  app.post('/api/db/connect', async (req: Request, res: Response) => {
-    let { uri, databaseName } = req.body;
-    if (!uri) {
-      return res.status(400).json({ success: false, error: 'URI MongoDB wajib diisi' });
+  // Connect or Test connection with user-provided connection string
+  app.post('/api/supabase/connect', async (req: Request, res: Response) => {
+    let { connectionString, url, anonKey } = req.body;
+    let targetConn = connectionString;
+
+    // Handle backward compatibility if client passed { url, anonKey }
+    if (!targetConn && url && anonKey) {
+      targetConn = currentConnString || DEFAULT_CONNECTION_STRING;
     }
 
-    // Jika URI yang dikirim mengandung karakter bullet masker (••••••••)
-    // dan server sudah punya URI aktif yang valid di runtime config, gunakan URI aktif tersebut
-    if (typeof uri === 'string' && (uri.includes('•••') || uri.includes('***'))) {
-      const savedConfig = loadRuntimeConfig();
-      if (savedConfig.uri && !savedConfig.uri.includes('•••')) {
-        uri = savedConfig.uri;
+    if (!targetConn) {
+      return res.status(400).json({ success: false, error: 'Connection string PostgreSQL wajib diisi' });
+    }
+
+    // Handle mask
+    if (typeof targetConn === 'string' && (targetConn.includes('•••') || targetConn.includes('***'))) {
+      const saved = loadRuntimeConfig();
+      if (saved.connectionString && !saved.connectionString.includes('•••')) {
+        targetConn = saved.connectionString;
       }
     }
 
-    const dbName = databaseName || 'absensi_on_db';
-
-    // Jika server saat ini sudah terhubung ke database dan URI sama, langsung kembalikan sukses
-    if (mongoClient && currentDb && currentUri === uri && currentDbName === dbName) {
-      return res.json({
-        success: true,
-        message: 'Koneksi ke MongoDB Atlas aktif dan siap digunakan!',
-        databaseName: currentDbName,
-        uriMasked: maskUri(currentUri),
-      });
-    }
-
-    const result = await connectToMongo(uri, dbName);
+    const result = await connectToPostgres(targetConn);
 
     if (result.success) {
       res.json({
         success: true,
-        message: 'Koneksi ke MongoDB Atlas berhasil!',
-        databaseName: currentDbName,
-        uriMasked: maskUri(currentUri),
+        message: 'Koneksi ke Supabase PostgreSQL berhasil dan siap digunakan!',
+        connectionStringMasked: maskConnectionString(currentConnString),
       });
     } else {
       res.status(400).json({
@@ -416,17 +454,15 @@ async function startServer() {
     }
   });
 
-  // Disconnect from MongoDB
-  app.post('/api/db/disconnect', async (req: Request, res: Response) => {
-    if (mongoClient) {
+  // Disconnect from Supabase
+  app.post('/api/supabase/disconnect', async (req: Request, res: Response) => {
+    if (pgPool) {
       try {
-        await mongoClient.close();
+        await pgPool.end();
       } catch {}
-      mongoClient = null;
-      currentDb = null;
+      pgPool = null;
     }
-    currentUri = '';
-    currentDbName = '';
+    currentConnString = '';
     lastError = null;
 
     if (fs.existsSync(CONFIG_FILE)) {
@@ -435,114 +471,252 @@ async function startServer() {
       } catch {}
     }
 
-    res.json({ success: true, message: 'Terputus dari MongoDB. Aplikasi beralih ke mode offline lokal.' });
+    res.json({ success: true, message: 'Terputus dari Supabase. Aplikasi beralih ke mode offline lokal.' });
+  });
+
+  // Legacy route redirect for status backward compatibility
+  app.get('/api/db/status', (req: Request, res: Response) => {
+    res.redirect(307, '/api/supabase/status');
   });
 
   // ==========================================
   // API ROUTES: DATA SYNC & CRUD
   // ==========================================
 
-  // GET ALL DATA (Teachers, Schedules, Holidays, Attendances)
+  // GET ALL DATA
   app.get('/api/data', async (req: Request, res: Response) => {
     try {
-      const db = getActiveDb();
+      if (pgPool) {
+        const [tRes, sRes, hRes, aRes] = await Promise.all([
+          pgPool.query('SELECT * FROM teachers ORDER BY name ASC'),
+          pgPool.query('SELECT * FROM schedules ORDER BY teacher_name ASC'),
+          pgPool.query('SELECT * FROM holidays ORDER BY start_date ASC'),
+          pgPool.query('SELECT * FROM attendances ORDER BY date DESC'),
+        ]);
+
+        const teachers = tRes.rows.map((row: any) => ({
+          id: String(row.id),
+          name: String(row.name || ''),
+          active: row.active ?? true,
+          createdAt: row.created_at || new Date().toISOString(),
+        }));
+
+        const schedules = sRes.rows.map((row: any) => ({
+          id: String(row.id),
+          teacherId: String(row.teacher_id ?? ''),
+          teacherName: String(row.teacher_name ?? ''),
+          senin: Number(row.senin) || 0,
+          selasa: Number(row.selasa) || 0,
+          rabu: Number(row.rabu) || 0,
+          kamis: Number(row.kamis) || 0,
+          jumat: Number(row.jumat) || 0,
+          sabtu: Number(row.sabtu) || 0,
+          minggu: Number(row.minggu) || 0,
+          tahfidzSenin: Number(row.tahfidz_senin) || 0,
+          tahfidzSelasa: Number(row.tahfidz_selasa) || 0,
+          tahfidzRabu: Number(row.tahfidz_rabu) || 0,
+          tahfidzKamis: Number(row.tahfidz_kamis) || 0,
+          tahfidzJumat: Number(row.tahfidz_jumat) || 0,
+          tahfidzSabtu: Number(row.tahfidz_sabtu) || 0,
+          tahfidzMinggu: Number(row.tahfidz_minggu) || 0,
+        }));
+
+        const holidays = hRes.rows.map((row: any) => ({
+          id: String(row.id),
+          title: String(row.title || ''),
+          type: row.type || 'single',
+          startDate: row.start_date ?? '',
+          endDate: row.end_date,
+          dayOfWeek: row.day_of_week,
+          scope: row.scope || 'Untuk Semuanya',
+          isAutomaticWeekly: !!row.is_automatic_weekly,
+          description: row.description || '',
+          sessions: row.sessions,
+        }));
+
+        const attendances = aRes.rows.map((row: any) => ({
+          id: String(row.id),
+          date: String(row.date),
+          teacherId: String(row.teacher_id ?? ''),
+          teacherName: String(row.teacher_name ?? ''),
+          status: row.status || 'hadir',
+          targetMengajar: Number(row.target_mengajar) || 0,
+          actualMengajar: Number(row.actual_mengajar) || 0,
+          targetTahfidz: Number(row.target_tahfidz) || 0,
+          actualTahfidz: Number(row.actual_tahfidz) || 0,
+          mengajarSlots: row.mengajar_slots || [],
+          tahfidzSlots: row.tahfidz_slots || [],
+          updatedAt: row.updated_at || new Date().toISOString(),
+        }));
+
+        return res.json({
+          connected: true,
+          inMemory: false,
+          data: { teachers, schedules, holidays, attendances },
+        });
+      }
+
+      // Fallback: In Memory Db
       const [teachers, schedules, holidays, attendances] = await Promise.all([
-        db.collection('teachers').find({}, { projection: { _id: 0 } }).toArray(),
-        db.collection('schedules').find({}, { projection: { _id: 0 } }).toArray(),
-        db.collection('holidays').find({}, { projection: { _id: 0 } }).toArray(),
-        db.collection('attendances').find({}, { projection: { _id: 0 } }).toArray(),
+        inMemoryDb.collection('teachers').find().toArray(),
+        inMemoryDb.collection('schedules').find().toArray(),
+        inMemoryDb.collection('holidays').find().toArray(),
+        inMemoryDb.collection('attendances').find().toArray(),
       ]);
 
       res.json({
-        connected: !!currentDb,
-        inMemory: !currentDb,
-        data: {
-          teachers,
-          schedules,
-          holidays,
-          attendances,
-        },
+        connected: false,
+        inMemory: true,
+        data: { teachers, schedules, holidays, attendances },
       });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
 
-  // BATCH SYNC: Upload full dataset from client to MongoDB (e.g. initial sync or backup restore)
+  // BATCH SYNC: Upload full dataset from client to Supabase PostgreSQL
   app.post('/api/data/sync', async (req: Request, res: Response) => {
     const { teachers, schedules, holidays, attendances } = req.body;
-    const db = getActiveDb();
 
     try {
-      // Upsert teachers safely (never delete existing data)
+      if (pgPool) {
+        // Upsert teachers
+        if (Array.isArray(teachers) && teachers.length > 0) {
+          for (const t of teachers) {
+            await pgPool.query(
+              `INSERT INTO teachers (id, name, active, created_at)
+               VALUES ($1, $2, $3, $4)
+               ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, active = EXCLUDED.active`,
+              [t.id, t.name, t.active ?? true, t.createdAt || new Date().toISOString()]
+            );
+          }
+        }
+
+        // Upsert schedules
+        if (Array.isArray(schedules) && schedules.length > 0) {
+          for (const s of schedules) {
+            await pgPool.query(
+              `INSERT INTO schedules (
+                id, teacher_id, teacher_name, senin, selasa, rabu, kamis, jumat, sabtu, minggu,
+                tahfidz_senin, tahfidz_selasa, tahfidz_rabu, tahfidz_kamis, tahfidz_jumat, tahfidz_sabtu, tahfidz_minggu
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+              ON CONFLICT (id) DO UPDATE SET
+                teacher_id = EXCLUDED.teacher_id,
+                teacher_name = EXCLUDED.teacher_name,
+                senin = EXCLUDED.senin, selasa = EXCLUDED.selasa, rabu = EXCLUDED.rabu, kamis = EXCLUDED.kamis, jumat = EXCLUDED.jumat, sabtu = EXCLUDED.sabtu, minggu = EXCLUDED.minggu,
+                tahfidz_senin = EXCLUDED.tahfidz_senin, tahfidz_selasa = EXCLUDED.tahfidz_selasa, tahfidz_rabu = EXCLUDED.tahfidz_rabu, tahfidz_kamis = EXCLUDED.tahfidz_kamis, tahfidz_jumat = EXCLUDED.tahfidz_jumat, tahfidz_sabtu = EXCLUDED.tahfidz_sabtu, tahfidz_minggu = EXCLUDED.tahfidz_minggu`,
+              [
+                s.id || `sch-${s.teacherId}`,
+                s.teacherId,
+                s.teacherName,
+                Number(s.senin) || 0,
+                Number(s.selasa) || 0,
+                Number(s.rabu) || 0,
+                Number(s.kamis) || 0,
+                Number(s.jumat) || 0,
+                Number(s.sabtu) || 0,
+                Number(s.minggu) || 0,
+                Number(s.tahfidzSenin) || 0,
+                Number(s.tahfidzSelasa) || 0,
+                Number(s.tahfidzRabu) || 0,
+                Number(s.tahfidzKamis) || 0,
+                Number(s.tahfidzJumat) || 0,
+                Number(s.tahfidzSabtu) || 0,
+                Number(s.tahfidzMinggu) || 0,
+              ]
+            );
+          }
+        }
+
+        // Upsert holidays
+        if (Array.isArray(holidays) && holidays.length > 0) {
+          for (const h of holidays) {
+            await pgPool.query(
+              `INSERT INTO holidays (id, title, type, start_date, end_date, day_of_week, scope, is_automatic_weekly, description, sessions)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+               ON CONFLICT (id) DO UPDATE SET
+                 title = EXCLUDED.title, type = EXCLUDED.type, start_date = EXCLUDED.start_date, end_date = EXCLUDED.end_date, day_of_week = EXCLUDED.day_of_week, scope = EXCLUDED.scope, is_automatic_weekly = EXCLUDED.is_automatic_weekly, description = EXCLUDED.description, sessions = EXCLUDED.sessions`,
+              [
+                h.id,
+                h.title,
+                h.type || 'single',
+                h.startDate,
+                h.endDate || null,
+                h.dayOfWeek || null,
+                h.scope || 'Untuk Semuanya',
+                !!h.isAutomaticWeekly,
+                h.description || '',
+                h.sessions ? JSON.stringify(h.sessions) : null,
+              ]
+            );
+          }
+        }
+
+        // Upsert attendances (PERMANENT)
+        if (Array.isArray(attendances) && attendances.length > 0) {
+          for (const a of attendances) {
+            await pgPool.query(
+              `INSERT INTO attendances (
+                id, date, teacher_id, teacher_name, status, target_mengajar, actual_mengajar, target_tahfidz, actual_tahfidz, mengajar_slots, tahfidz_slots, updated_at
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+              ON CONFLICT (id) DO UPDATE SET
+                status = EXCLUDED.status,
+                target_mengajar = EXCLUDED.target_mengajar,
+                actual_mengajar = EXCLUDED.actual_mengajar,
+                target_tahfidz = EXCLUDED.target_tahfidz,
+                actual_tahfidz = EXCLUDED.actual_tahfidz,
+                mengajar_slots = EXCLUDED.mengajar_slots,
+                tahfidz_slots = EXCLUDED.tahfidz_slots,
+                updated_at = EXCLUDED.updated_at`,
+              [
+                a.id,
+                a.date,
+                a.teacherId,
+                a.teacherName,
+                a.status || 'hadir',
+                Number(a.targetMengajar) || 0,
+                Number(a.actualMengajar) || 0,
+                Number(a.targetTahfidz) || 0,
+                Number(a.actualTahfidz) || 0,
+                JSON.stringify(a.mengajarSlots || []),
+                JSON.stringify(a.tahfidzSlots || []),
+                a.updatedAt || new Date().toISOString(),
+              ]
+            );
+          }
+        }
+
+        return res.json({
+          success: true,
+          message: 'Seluruh data berhasil disinkronkan ke Supabase PostgreSQL secara aman.',
+        });
+      }
+
+      // In Memory Store fallback
       if (Array.isArray(teachers) && teachers.length > 0) {
-        const col = db.collection('teachers');
-        const ops = teachers.map((t: any) => {
-          const { _id, ...clean } = t;
-          return {
-            updateOne: {
-              filter: { id: clean.id },
-              update: { $set: clean },
-              upsert: true,
-            },
-          };
-        });
-        await col.bulkWrite(ops);
+        for (const t of teachers) {
+          await inMemoryDb.collection('teachers').updateOne({ id: t.id }, { $set: t }, { upsert: true });
+        }
       }
-
-      // Upsert schedules safely (never delete existing data)
       if (Array.isArray(schedules) && schedules.length > 0) {
-        const col = db.collection('schedules');
-        const ops = schedules.map((s: any) => {
-          const { _id, ...clean } = s;
-          return {
-            updateOne: {
-              filter: { teacherId: clean.teacherId },
-              update: { $set: clean },
-              upsert: true,
-            },
-          };
-        });
-        await col.bulkWrite(ops);
+        for (const s of schedules) {
+          await inMemoryDb.collection('schedules').updateOne({ teacherId: s.teacherId }, { $set: s }, { upsert: true });
+        }
       }
-
-      // Upsert holidays safely (never delete existing data)
       if (Array.isArray(holidays) && holidays.length > 0) {
-        const col = db.collection('holidays');
-        const ops = holidays.map((h: any) => {
-          const { _id, ...clean } = h;
-          return {
-            updateOne: {
-              filter: { id: clean.id },
-              update: { $set: clean },
-              upsert: true,
-            },
-          };
-        });
-        await col.bulkWrite(ops);
+        for (const h of holidays) {
+          await inMemoryDb.collection('holidays').updateOne({ id: h.id }, { $set: h }, { upsert: true });
+        }
       }
-
-      // Upsert attendances safely (PERMANENT: Never delete existing attendances)
       if (Array.isArray(attendances) && attendances.length > 0) {
-        const col = db.collection('attendances');
-        const ops = attendances.map((rec: any) => {
-          const { _id, ...clean } = rec;
-          return {
-            updateOne: {
-              filter: { id: clean.id },
-              update: { $set: clean },
-              upsert: true,
-            },
-          };
-        });
-        await col.bulkWrite(ops);
+        for (const a of attendances) {
+          await inMemoryDb.collection('attendances').updateOne({ id: a.id }, { $set: a }, { upsert: true });
+        }
       }
 
       res.json({
         success: true,
-        message: currentDb
-          ? 'Seluruh data berhasil disinkronkan ke MongoDB Atlas secara aman.'
-          : 'Seluruh data berhasil disinkronkan ke database memori aplikasi.',
+        message: 'Seluruh data berhasil disinkronkan ke database memori aplikasi.',
       });
     } catch (err: any) {
       console.error('Error syncing data:', err);
@@ -556,12 +730,15 @@ async function startServer() {
     if (!teacher || !teacher.id) return res.status(400).json({ error: 'Data guru tidak valid' });
 
     try {
-      const db = getActiveDb();
-      await db.collection('teachers').updateOne(
-        { id: teacher.id },
-        { $set: teacher },
-        { upsert: true }
-      );
+      if (pgPool) {
+        await pgPool.query(
+          `INSERT INTO teachers (id, name, active, created_at)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, active = EXCLUDED.active`,
+          [teacher.id, teacher.name, teacher.active ?? true, teacher.createdAt || new Date().toISOString()]
+        );
+      }
+      await inMemoryDb.collection('teachers').updateOne({ id: teacher.id }, { $set: teacher }, { upsert: true });
       res.json({ success: true, teacher });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -571,9 +748,12 @@ async function startServer() {
   app.delete('/api/teachers/:id', async (req: Request, res: Response) => {
     const { id } = req.params;
     try {
-      const db = getActiveDb();
-      await db.collection('teachers').deleteOne({ id });
-      await db.collection('schedules').deleteOne({ teacherId: id });
+      if (pgPool) {
+        await pgPool.query('DELETE FROM teachers WHERE id = $1', [id]);
+        await pgPool.query('DELETE FROM schedules WHERE teacher_id = $1', [id]);
+      }
+      await inMemoryDb.collection('teachers').deleteOne({ id });
+      await inMemoryDb.collection('schedules').deleteOne({ teacherId: id });
       res.json({ success: true });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -586,12 +766,39 @@ async function startServer() {
     if (!schedule || !schedule.teacherId) return res.status(400).json({ error: 'Data jadwal tidak valid' });
 
     try {
-      const db = getActiveDb();
-      await db.collection('schedules').updateOne(
-        { teacherId: schedule.teacherId },
-        { $set: schedule },
-        { upsert: true }
-      );
+      if (pgPool) {
+        await pgPool.query(
+          `INSERT INTO schedules (
+            id, teacher_id, teacher_name, senin, selasa, rabu, kamis, jumat, sabtu, minggu,
+            tahfidz_senin, tahfidz_selasa, tahfidz_rabu, tahfidz_kamis, tahfidz_jumat, tahfidz_sabtu, tahfidz_minggu
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+          ON CONFLICT (id) DO UPDATE SET
+            teacher_id = EXCLUDED.teacher_id,
+            teacher_name = EXCLUDED.teacher_name,
+            senin = EXCLUDED.senin, selasa = EXCLUDED.selasa, rabu = EXCLUDED.rabu, kamis = EXCLUDED.kamis, jumat = EXCLUDED.jumat, sabtu = EXCLUDED.sabtu, minggu = EXCLUDED.minggu,
+            tahfidz_senin = EXCLUDED.tahfidz_senin, tahfidz_selasa = EXCLUDED.tahfidz_selasa, tahfidz_rabu = EXCLUDED.tahfidz_rabu, tahfidz_kamis = EXCLUDED.tahfidz_kamis, tahfidz_jumat = EXCLUDED.tahfidz_jumat, tahfidz_sabtu = EXCLUDED.tahfidz_sabtu, tahfidz_minggu = EXCLUDED.tahfidz_minggu`,
+          [
+            schedule.id || `sch-${schedule.teacherId}`,
+            schedule.teacherId,
+            schedule.teacherName,
+            Number(schedule.senin) || 0,
+            Number(schedule.selasa) || 0,
+            Number(schedule.rabu) || 0,
+            Number(schedule.kamis) || 0,
+            Number(schedule.jumat) || 0,
+            Number(schedule.sabtu) || 0,
+            Number(schedule.minggu) || 0,
+            Number(schedule.tahfidzSenin) || 0,
+            Number(schedule.tahfidzSelasa) || 0,
+            Number(schedule.tahfidzRabu) || 0,
+            Number(schedule.tahfidzKamis) || 0,
+            Number(schedule.tahfidzJumat) || 0,
+            Number(schedule.tahfidzSabtu) || 0,
+            Number(schedule.tahfidzMinggu) || 0,
+          ]
+        );
+      }
+      await inMemoryDb.collection('schedules').updateOne({ teacherId: schedule.teacherId }, { $set: schedule }, { upsert: true });
       res.json({ success: true, schedule });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -604,12 +811,27 @@ async function startServer() {
     if (!holiday || !holiday.id) return res.status(400).json({ error: 'Data hari libur tidak valid' });
 
     try {
-      const db = getActiveDb();
-      await db.collection('holidays').updateOne(
-        { id: holiday.id },
-        { $set: holiday },
-        { upsert: true }
-      );
+      if (pgPool) {
+        await pgPool.query(
+          `INSERT INTO holidays (id, title, type, start_date, end_date, day_of_week, scope, is_automatic_weekly, description, sessions)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           ON CONFLICT (id) DO UPDATE SET
+             title = EXCLUDED.title, type = EXCLUDED.type, start_date = EXCLUDED.start_date, end_date = EXCLUDED.end_date, day_of_week = EXCLUDED.day_of_week, scope = EXCLUDED.scope, is_automatic_weekly = EXCLUDED.is_automatic_weekly, description = EXCLUDED.description, sessions = EXCLUDED.sessions`,
+          [
+            holiday.id,
+            holiday.title,
+            holiday.type || 'single',
+            holiday.startDate,
+            holiday.endDate || null,
+            holiday.dayOfWeek || null,
+            holiday.scope || 'Untuk Semuanya',
+            !!holiday.isAutomaticWeekly,
+            holiday.description || '',
+            holiday.sessions ? JSON.stringify(holiday.sessions) : null,
+          ]
+        );
+      }
+      await inMemoryDb.collection('holidays').updateOne({ id: holiday.id }, { $set: holiday }, { upsert: true });
       res.json({ success: true, holiday });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -619,8 +841,10 @@ async function startServer() {
   app.delete('/api/holidays/:id', async (req: Request, res: Response) => {
     const { id } = req.params;
     try {
-      const db = getActiveDb();
-      await db.collection('holidays').deleteOne({ id });
+      if (pgPool) {
+        await pgPool.query('DELETE FROM holidays WHERE id = $1', [id]);
+      }
+      await inMemoryDb.collection('holidays').deleteOne({ id });
       res.json({ success: true });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -633,9 +857,38 @@ async function startServer() {
     if (!record || !record.id) return res.status(400).json({ error: 'Data presensi tidak valid' });
 
     try {
-      const db = getActiveDb();
+      if (pgPool) {
+        await pgPool.query(
+          `INSERT INTO attendances (
+            id, date, teacher_id, teacher_name, status, target_mengajar, actual_mengajar, target_tahfidz, actual_tahfidz, mengajar_slots, tahfidz_slots, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          ON CONFLICT (id) DO UPDATE SET
+            status = EXCLUDED.status,
+            target_mengajar = EXCLUDED.target_mengajar,
+            actual_mengajar = EXCLUDED.actual_mengajar,
+            target_tahfidz = EXCLUDED.target_tahfidz,
+            actual_tahfidz = EXCLUDED.actual_tahfidz,
+            mengajar_slots = EXCLUDED.mengajar_slots,
+            tahfidz_slots = EXCLUDED.tahfidz_slots,
+            updated_at = EXCLUDED.updated_at`,
+          [
+            record.id,
+            record.date,
+            record.teacherId,
+            record.teacherName,
+            record.status || 'hadir',
+            Number(record.targetMengajar) || 0,
+            Number(record.actualMengajar) || 0,
+            Number(record.targetTahfidz) || 0,
+            Number(record.actualTahfidz) || 0,
+            JSON.stringify(record.mengajarSlots || []),
+            JSON.stringify(record.tahfidzSlots || []),
+            record.updatedAt || new Date().toISOString(),
+          ]
+        );
+      }
       const { _id, ...cleanRecord } = record;
-      await db.collection('attendances').updateOne(
+      await inMemoryDb.collection('attendances').updateOne(
         { id: cleanRecord.id },
         { $set: cleanRecord },
         { upsert: true }
@@ -651,21 +904,48 @@ async function startServer() {
     if (!Array.isArray(records)) return res.status(400).json({ error: 'Records must be array' });
 
     try {
-      const db = getActiveDb();
-      const operations = records.map((rec: any) => {
-        const { _id, ...cleanRec } = rec;
-        return {
-          updateOne: {
-            filter: { id: cleanRec.id },
-            update: { $set: cleanRec },
-            upsert: true,
-          },
-        };
-      });
-      if (operations.length > 0) {
-        await db.collection('attendances').bulkWrite(operations);
+      if (pgPool && records.length > 0) {
+        for (const a of records) {
+          await pgPool.query(
+            `INSERT INTO attendances (
+              id, date, teacher_id, teacher_name, status, target_mengajar, actual_mengajar, target_tahfidz, actual_tahfidz, mengajar_slots, tahfidz_slots, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            ON CONFLICT (id) DO UPDATE SET
+              status = EXCLUDED.status,
+              target_mengajar = EXCLUDED.target_mengajar,
+              actual_mengajar = EXCLUDED.actual_mengajar,
+              target_tahfidz = EXCLUDED.target_tahfidz,
+              actual_tahfidz = EXCLUDED.actual_tahfidz,
+              mengajar_slots = EXCLUDED.mengajar_slots,
+              tahfidz_slots = EXCLUDED.tahfidz_slots,
+              updated_at = EXCLUDED.updated_at`,
+            [
+              a.id,
+              a.date,
+              a.teacherId,
+              a.teacherName,
+              a.status || 'hadir',
+              Number(a.targetMengajar) || 0,
+              Number(a.actualMengajar) || 0,
+              Number(a.targetTahfidz) || 0,
+              Number(a.actualTahfidz) || 0,
+              JSON.stringify(a.mengajarSlots || []),
+              JSON.stringify(a.tahfidzSlots || []),
+              a.updatedAt || new Date().toISOString(),
+            ]
+          );
+        }
       }
-      res.json({ success: true, count: operations.length });
+
+      for (const rec of records) {
+        const { _id, ...cleanRec } = rec;
+        await inMemoryDb.collection('attendances').updateOne(
+          { id: cleanRec.id },
+          { $set: cleanRec },
+          { upsert: true }
+        );
+      }
+      res.json({ success: true, count: records.length });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
@@ -674,8 +954,10 @@ async function startServer() {
   // Hapus seluruh presensi (reset murni ke 0)
   app.post('/api/attendance/clear', async (req: Request, res: Response) => {
     try {
-      const db = getActiveDb();
-      const result = await db.collection('attendances').deleteMany({});
+      if (pgPool) {
+        await pgPool.query('DELETE FROM attendances');
+      }
+      const result = await inMemoryDb.collection('attendances').deleteMany({});
       res.json({ success: true, deletedCount: result.deletedCount, message: 'Seluruh data presensi berhasil dibersihkan.' });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -684,8 +966,10 @@ async function startServer() {
 
   app.delete('/api/attendance', async (req: Request, res: Response) => {
     try {
-      const db = getActiveDb();
-      const result = await db.collection('attendances').deleteMany({});
+      if (pgPool) {
+        await pgPool.query('DELETE FROM attendances');
+      }
+      const result = await inMemoryDb.collection('attendances').deleteMany({});
       res.json({ success: true, deletedCount: result.deletedCount, message: 'Seluruh data presensi berhasil dibersihkan.' });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -709,14 +993,12 @@ async function startServer() {
   const hasDist = fs.existsSync(path.resolve(distPath, 'index.html'));
 
   if (!isDev && hasDist) {
-    // Mode Produksi: Sajikan file statis dari folder dist
     console.log('[absensi-on] Menjalankan dalam mode produksi (Static dist)');
     app.use(express.static(distPath));
     app.get('*', (req: Request, res: Response) => {
       res.sendFile(path.resolve(distPath, 'index.html'));
     });
   } else {
-    // Mode Development: Muat Vite secara dinamis
     console.log('[absensi-on] Menjalankan dalam mode development (Vite middleware)');
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({

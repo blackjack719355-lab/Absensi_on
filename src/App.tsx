@@ -11,14 +11,14 @@ import { JadwalView } from './components/JadwalView';
 import { RekapBulananView } from './components/RekapBulananView';
 import { LaporanTahunanView } from './components/LaporanTahunanView';
 import { HariLiburView } from './components/HariLiburView';
-import { MongoDbModal } from './components/MongoDbModal';
+import { SupabaseModal } from './components/SupabaseModal';
 import { storage } from './services/storage';
 import { Teacher, TeacherScheduleRow, HolidayItem } from './types';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<NavTab>('beranda');
-  const [isMongoModalOpen, setIsMongoModalOpen] = useState(false);
-  const [mongoConfig, setMongoConfig] = useState(storage.getConfig());
+  const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
+  const [supabaseConfig, setSupabaseConfig] = useState(storage.getConfig());
 
   // Data state
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -29,7 +29,7 @@ export default function App() {
     setTeachers(storage.getTeachers());
     setSchedules(storage.getSchedules());
     setHolidays(storage.getHolidays());
-    setMongoConfig(storage.getConfig());
+    setSupabaseConfig(storage.getConfig());
   };
 
   useEffect(() => {
@@ -44,8 +44,8 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 flex flex-col selection:bg-emerald-100 selection:text-emerald-900">
       {/* Header Utama */}
       <Header
-        mongoConfig={mongoConfig}
-        onOpenMongoModal={() => setIsMongoModalOpen(true)}
+        supabaseConfig={supabaseConfig}
+        onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
         activeTab={activeTab}
       />
 
@@ -94,11 +94,11 @@ export default function App() {
         )}
       </main>
 
-      {/* Modal MongoDB Online */}
-      <MongoDbModal
-        isOpen={isMongoModalOpen}
-        onClose={() => setIsMongoModalOpen(false)}
-        config={mongoConfig}
+      {/* Modal Supabase Online */}
+      <SupabaseModal
+        isOpen={isSupabaseModalOpen}
+        onClose={() => setIsSupabaseModalOpen(false)}
+        config={supabaseConfig}
         onRefreshData={loadData}
       />
 
@@ -107,7 +107,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
           <p>© 2026 absensi-on · Sistem Absensi Guru Mengajar & Tahfidz</p>
           <div className="flex items-center gap-4">
-            <span>Didukung Database MongoDB Online</span>
+            <span>Didukung Database Supabase Online (PostgreSQL)</span>
             <span>·</span>
             <span>Ekspor & Impor Excel (.xlsx)</span>
           </div>

@@ -8,12 +8,14 @@ const STORAGE_KEY_TEACHERS = 'absensi_on_teachers_v2';
 const STORAGE_KEY_SCHEDULES = 'absensi_on_schedules_v2';
 const STORAGE_KEY_HOLIDAYS = 'absensi_on_holidays_v2';
 const STORAGE_KEY_ATTENDANCE = 'absensi_on_attendance_v2';
-const STORAGE_KEY_CONFIG = 'absensi_on_mongo_config_v2';
+const STORAGE_KEY_CONFIG = 'absensi_on_supabase_config_v1';
 
-export interface MongoConfig {
-  databaseName: string;
-  uri: string;
-  uriMasked?: string;
+export interface SupabaseConfig {
+  connectionString?: string;
+  connectionStringMasked?: string;
+  url?: string;
+  anonKey?: string;
+  anonKeyMasked?: string;
   status: 'connected' | 'offline_sync';
   lastSyncedAt: string;
   error?: string | null;
@@ -24,6 +26,9 @@ export interface MongoConfig {
     attendances: number;
   };
 }
+
+// Backward-compat type alias
+export type MongoConfig = SupabaseConfig;
 
 export function getLocalDateString(d: Date = new Date()): string {
   const year = d.getFullYear();
@@ -263,10 +268,10 @@ class StorageRepository {
   private holidays: HolidayItem[] = [];
   private attendances: DailyAttendanceRecord[] = [];
   private listeners: Array<() => void> = [];
-  private mongoConfig: MongoConfig = {
-    databaseName: 'absensi_on_db',
-    uri: '',
-    uriMasked: '',
+  private supabaseConfig: SupabaseConfig = {
+    url: '',
+    anonKey: '',
+    anonKeyMasked: '',
     status: 'offline_sync',
     lastSyncedAt: new Date().toISOString(),
     error: null,
@@ -329,7 +334,7 @@ class StorageRepository {
 
       const savedConfig = localStorage.getItem(STORAGE_KEY_CONFIG);
       if (savedConfig) {
-        this.mongoConfig = { ...this.mongoConfig, ...JSON.parse(savedConfig) };
+        this.supabaseConfig = { ...this.supabaseConfig, ...JSON.parse(savedConfig) };
       }
     } catch (e) {
       this.teachers = INITIAL_TEACHERS;
@@ -339,15 +344,15 @@ class StorageRepository {
     }
 
     this.syncAutomaticWeeklyHolidays();
-    // Sinkronisasi otomatis dengan database MongoDB Atlas (sumber kebenaran persisten)
+    // Sinkronisasi otomatis dengan database Supabase (sumber kebenaran persisten)
     this.syncWithBackend();
   }
 
-  // Cek status koneksi MongoDB di backend dan ambil data jika terhubung (dengan auto-retry saat cold-start)
+  // Cek status koneksi Supabase di backend dan ambil data jika terhubung (dengan auto-retry saat cold-start)
   public async syncWithBackend(retries = 4, delayMs = 1500) {
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        const res = await fetch('/api/db/status');
+        const res = await fetch('/api/supabase/status');
         if (!res.ok) {
           if ((res.status === 404 || res.status === 502 || res.status === 503) && attempt < retries) {
             await new Promise(resolve => setTimeout(resolve, delayMs));
@@ -367,19 +372,21 @@ class StorageRepository {
           return;
         }
 
-        this.mongoConfig = {
-          databaseName: statusData.databaseName || this.mongoConfig.databaseName,
-          uri: this.mongoConfig.uri && !this.mongoConfig.uri.includes('•••') ? this.mongoConfig.uri : '',
-          uriMasked: statusData.uriMasked,
+        this.supabaseConfig = {
+          connectionString: this.supabaseConfig.connectionString && !this.supabaseConfig.connectionString.includes('•••') ? this.supabaseConfig.connectionString : '',
+          connectionStringMasked: statusData.connectionStringMasked || this.supabaseConfig.connectionStringMasked,
+          url: statusData.url || this.supabaseConfig.url,
+          anonKey: this.supabaseConfig.anonKey && !this.supabaseConfig.anonKey.includes('•••') ? this.supabaseConfig.anonKey : '',
+          anonKeyMasked: statusData.anonKeyMasked,
           status: statusData.connected ? 'connected' : 'offline_sync',
           lastSyncedAt: new Date().toISOString(),
           error: statusData.connected ? null : (statusData.error || null),
           counts: statusData.counts,
         };
         if (statusData.connected) {
-          this.mongoConfig.error = null;
+          this.supabaseConfig.error = null;
         }
-        this.saveConfigLocally(this.mongoConfig);
+        this.saveConfigLocally(this.supabaseConfig);
         this.notifyListeners();
 
         if (statusData.connected) {
@@ -388,11 +395,11 @@ class StorageRepository {
                             (statusData.counts?.holidays || 0);
 
           if (totalDocs === 0) {
-            // Jika database MongoDB benar-benar baru dibuat dan masih 0 dokumen sama sekali,
-            // kirimkan dataset awal guru & jadwal ke MongoDB
-            await this.pushAllToMongo();
+            // Jika database Supabase benar-benar baru dibuat dan masih 0 dokumen sama sekali,
+            // kirimkan dataset awal guru & jadwal ke Supabase
+            await this.pushAllToSupabase();
           } else {
-            // Ambil seluruh data terbaru dari MongoDB Atlas ke memori aplikasi
+            // Ambil seluruh data terbaru dari Supabase ke memori aplikasi
             const dataRes = await fetch('/api/data');
             if (dataRes.ok) {
               const dataText = await dataRes.text();
@@ -419,7 +426,7 @@ class StorageRepository {
                 if (Array.isArray(result.data.attendances)) {
                   const serverAtts = result.data.attendances as DailyAttendanceRecord[];
                   const attMap = new Map<string, DailyAttendanceRecord>();
-                  // 1. Masukkan semua data dari MongoDB Atlas (sumber kebenaran persisten)
+                  // 1. Masukkan semua data dari Supabase (sumber kebenaran persisten)
                   serverAtts.forEach((a: any) => {
                     const { _id, ...clean } = a;
                     const key = clean.id || `${clean.date}_${clean.teacherId}`;
@@ -469,24 +476,30 @@ class StorageRepository {
     }
   }
 
-  // Hubungkan ke MongoDB dengan URI yang diinput pengguna (dengan auto-retry saat cold-start)
-  public async connectMongo(uri: string, databaseName: string, retries = 6): Promise<{ success: boolean; message?: string; error?: string }> {
-    // 1. Jika pengguna mengirim URI yang dimasker (••••••••) dan database sudah tersambung
-    if (typeof uri === 'string' && (uri.includes('•••') || uri.includes('***'))) {
+  // Hubungkan ke Supabase dengan Connection String atau URL & Anon Key (dengan auto-retry saat cold-start)
+  public async connectSupabase(connectionStringOrUrl: string, anonKey?: string, retries = 6): Promise<{ success: boolean; message?: string; error?: string }> {
+    const isConnStr = connectionStringOrUrl.startsWith('postgres') || connectionStringOrUrl.includes('postgres:');
+    
+    // 1. Jika pengguna mengirim nilai yang dimasker (••••••••) dan database sudah tersambung
+    if (typeof connectionStringOrUrl === 'string' && (connectionStringOrUrl.includes('•••') || connectionStringOrUrl.includes('***'))) {
       await this.syncWithBackend();
-      if (this.mongoConfig.status === 'connected') {
-        this.mongoConfig.error = null;
-        this.saveConfigLocally(this.mongoConfig);
-        return { success: true, message: 'Database MongoDB Atlas sudah terhubung dan aktif!' };
+      if (this.supabaseConfig.status === 'connected') {
+        this.supabaseConfig.error = null;
+        this.saveConfigLocally(this.supabaseConfig);
+        return { success: true, message: 'Database Supabase PostgreSQL sudah terhubung dan aktif!' };
       }
     }
 
+    const payload = isConnStr
+      ? { connectionString: connectionStringOrUrl }
+      : { url: connectionStringOrUrl, anonKey: anonKey || '' };
+
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        const res = await fetch('/api/db/connect', {
+        const res = await fetch('/api/supabase/connect', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ uri, databaseName }),
+          body: JSON.stringify(payload),
         });
 
         // Jika server masih cold-start / restarting setelah deploy (404/502/503), coba kembali dengan jeda
@@ -504,14 +517,14 @@ class StorageRepository {
             await new Promise(resolve => setTimeout(resolve, 1500));
             continue;
           }
-          // Sebelum menyerah, cek apakah backend sebenarnya sudah hidup via /api/db/status
+          // Sebelum menyerah, cek apakah backend sebenarnya sudah hidup via /api/supabase/status
           try {
-            const checkRes = await fetch('/api/db/status');
+            const checkRes = await fetch('/api/supabase/status');
             if (checkRes.ok) {
               const checkData = await checkRes.json();
               if (checkData.connected) {
                 await this.syncWithBackend();
-                return { success: true, message: 'Koneksi ke MongoDB Atlas berhasil!' };
+                return { success: true, message: 'Koneksi ke Supabase berhasil!' };
               }
             }
           } catch {}
@@ -529,11 +542,11 @@ class StorageRepository {
         }
 
         if (res.ok && data.success) {
-          this.mongoConfig.error = null;
+          this.supabaseConfig.error = null;
           await this.syncWithBackend();
           return { success: true, message: data.message };
         } else {
-          return { success: false, error: data.error || 'Gagal terhubung ke MongoDB' };
+          return { success: false, error: data.error || 'Gagal terhubung ke Supabase' };
         }
       } catch (e: any) {
         if (attempt < retries) {
@@ -546,23 +559,23 @@ class StorageRepository {
     return { success: false, error: 'Gagal menghubungi server backend setelah beberapa percobaan.' };
   }
 
-  // Putuskan koneksi MongoDB
-  public async disconnectMongo(): Promise<{ success: boolean }> {
+  // Putuskan koneksi Supabase
+  public async disconnectSupabase(): Promise<{ success: boolean }> {
     try {
-      await fetch('/api/db/disconnect', { method: 'POST' });
+      await fetch('/api/supabase/disconnect', { method: 'POST' });
     } catch {}
-    this.mongoConfig = {
-      ...this.mongoConfig,
+    this.supabaseConfig = {
+      ...this.supabaseConfig,
       status: 'offline_sync',
       error: null,
     };
-    this.saveConfigLocally(this.mongoConfig);
+    this.saveConfigLocally(this.supabaseConfig);
     this.notifyListeners();
     return { success: true };
   }
 
-  // Kirim seluruh dataset lokal saat ini ke MongoDB
-  public async pushAllToMongo(): Promise<{ success: boolean; error?: string }> {
+  // Kirim seluruh dataset lokal saat ini ke Supabase
+  public async pushAllToSupabase(): Promise<{ success: boolean; error?: string }> {
     try {
       const res = await fetch('/api/data/sync', {
         method: 'POST',
@@ -589,6 +602,19 @@ class StorageRepository {
     } catch (e: any) {
       return { success: false, error: e.message };
     }
+  }
+
+  // Backward compatibility aliases
+  public async connectMongo(url: string, key: string, retries = 6) {
+    return this.connectSupabase(url, key, retries);
+  }
+
+  public async disconnectMongo() {
+    return this.disconnectSupabase();
+  }
+
+  public async pushAllToMongo() {
+    return this.pushAllToSupabase();
   }
 
   // Helper background POST ke API tanpa memblokir UI
@@ -639,19 +665,26 @@ class StorageRepository {
     this.notifyListeners();
   }
 
-  private saveConfigLocally(config: Partial<MongoConfig>) {
+  private saveConfigLocally(config: Partial<SupabaseConfig>) {
     try {
       localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(config));
     } catch {}
   }
 
-  public saveConfig(config: Partial<MongoConfig>) {
-    this.mongoConfig = { ...this.mongoConfig, ...config };
-    this.saveConfigLocally(this.mongoConfig);
+  public saveConfig(config: Partial<SupabaseConfig>) {
+    this.supabaseConfig = { ...this.supabaseConfig, ...config };
+    this.saveConfigLocally(this.supabaseConfig);
   }
 
-  public getConfig(): MongoConfig {
-    return { ...this.mongoConfig };
+  public getConfig(): SupabaseConfig {
+    return { ...this.supabaseConfig };
+  }
+
+  public resetAllAttendances() {
+    this.attendances = [];
+    this.saveAttendancesLocally();
+    this.apiPost('/attendance/clear', {});
+    this.notifyListeners();
   }
 
   // DETEKSI LIBUR PEKANAN OTOMATIS:
@@ -1600,7 +1633,7 @@ class StorageRepository {
         holidays: this.holidays,
         attendances: this.attendances,
       },
-      mongoConfig: this.mongoConfig,
+      supabaseConfig: this.supabaseConfig,
     }, null, 2);
   }
 
