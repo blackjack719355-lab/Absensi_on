@@ -1,4 +1,4 @@
 {
-  "connectionString": "postgresql://postgres:Sehat719355$@db.ugvxowesvhqjinmqdcje.supabase.co:5432/postgres",
+  "connectionString": "postgresql://postgres.ugvxowesvhqjinmqdcje:Sehat719355%24@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres",
   "databaseName": "postgres"
 }

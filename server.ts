@@ -14,8 +14,33 @@ const __dirname = path.dirname(__filename);
 
 const CONFIG_FILE = path.resolve(__dirname, '.supabase-runtime.json');
 
-// Connection string fallback from environment
-const DEFAULT_CONNECTION_STRING = process.env.DATABASE_URL || process.env.SUPABASE_CONNECTION_STRING || 'postgresql://postgres:Sehat719355$@db.ugvxowesvhqjinmqdcje.supabase.co:5432/postgres';
+// Safely normalize PostgreSQL URI so special characters like $ in password do not break URL parsing
+export function safeNormalizePgUrl(uri: string): string {
+  if (!uri) return '';
+  const trimmed = uri.trim();
+  const prefixMatch = trimmed.match(/^(postgres(?:ql)?:\/\/)(.*)$/);
+  if (!prefixMatch) return trimmed;
+  const prefix = prefixMatch[1];
+  const rest = prefixMatch[2];
+  const lastAtIndex = rest.lastIndexOf('@');
+  if (lastAtIndex === -1) return trimmed;
+  const creds = rest.slice(0, lastAtIndex);
+  const hostAndDb = rest.slice(lastAtIndex + 1);
+  const colonIndex = creds.indexOf(':');
+  if (colonIndex === -1) {
+    return prefix + encodeURIComponent(decodeURIComponent(creds)) + '@' + hostAndDb;
+  }
+  const user = decodeURIComponent(creds.slice(0, colonIndex));
+  const pass = decodeURIComponent(creds.slice(colonIndex + 1));
+  return prefix + encodeURIComponent(user) + ':' + encodeURIComponent(pass) + '@' + hostAndDb;
+}
+
+// Connection string fallback from environment (using dual-stack pooler with percent-encoded password)
+const DEFAULT_CONNECTION_STRING = safeNormalizePgUrl(
+  process.env.DATABASE_URL ||
+  process.env.SUPABASE_CONNECTION_STRING ||
+  'postgresql://postgres.ugvxowesvhqjinmqdcje:Sehat719355%24@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres'
+);
 
 interface SupabaseRuntimeConfig {
   connectionString: string;
@@ -133,7 +158,10 @@ function loadRuntimeConfig(): SupabaseRuntimeConfig {
     try {
       const data = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
       if (data.connectionString && !data.connectionString.includes('••••')) {
-        return data;
+        return {
+          ...data,
+          connectionString: safeNormalizePgUrl(data.connectionString),
+        };
       }
     } catch (e) {
       console.warn('Gagal membaca .supabase-runtime.json:', e);
@@ -285,6 +313,24 @@ async function ensureTables(pool: Pool) {
   }
 }
 
+// Generate alternative connection candidate (direct <-> pooler) for maximum environment compatibility
+function getAlternativeSupabaseUrl(url: string): string | null {
+  if (!url) return null;
+  // If direct db.<project>.supabase.co, generate dual-stack pooler url
+  const directMatch = url.match(/^(postgres(?:ql)?:\/\/)([^:]+):(.*)@db\.([a-z0-9]+)\.supabase\.co(?::\d+)?\/([^?]+)(.*)$/);
+  if (directMatch) {
+    const [, proto, user, pass, project, db, rest] = directMatch;
+    return `${proto}${user}.${project}:${pass}@aws-0-ap-southeast-1.pooler.supabase.com:5432/${db}${rest}`;
+  }
+  // If pooler aws-0-..., generate direct db.<project>.supabase.co
+  const poolerMatch = url.match(/^(postgres(?:ql)?:\/\/)([^.]+)\.([a-z0-9]+):(.*)@[^@/]+\.pooler\.supabase\.com(?::\d+)?\/([^?]+)(.*)$/);
+  if (poolerMatch) {
+    const [, proto, user, project, pass, db, rest] = poolerMatch;
+    return `${proto}${user}:${pass}@db.${project}.supabase.co:5432/${db}${rest}`;
+  }
+  return null;
+}
+
 // Connect to PostgreSQL / Supabase function
 async function connectToPostgres(connStr: string): Promise<{ success: boolean; error?: string }> {
   if (!connStr || !connStr.trim()) {
@@ -294,66 +340,93 @@ async function connectToPostgres(connStr: string): Promise<{ success: boolean; e
   isConnecting = true;
 
   try {
-    let cleanStr = connStr.trim();
+    // 1. Normalize connection string so special chars in password like $ do not throw Invalid URL
+    let cleanStr = safeNormalizePgUrl(connStr.trim());
 
     // If mask characters present, replace with existing connection string
     if (cleanStr.includes('••••') || cleanStr.includes('***')) {
       const saved = loadRuntimeConfig();
       if (saved.connectionString && !saved.connectionString.includes('•••')) {
-        cleanStr = saved.connectionString;
+        cleanStr = safeNormalizePgUrl(saved.connectionString);
       }
     }
 
-    const pool = new Pool({
-      connectionString: cleanStr,
-      ssl: { rejectUnauthorized: false },
-      connectionTimeoutMillis: 10000,
-      idleTimeoutMillis: 30000,
-      max: 10,
-    });
-
-    pool.on('error', (err) => {
-      console.error('[Supabase PG Pool Error]', err);
-    });
-
-    // Test query
-    const res = await pool.query('SELECT current_database() as db, NOW() as now');
-    console.log('[Supabase PG] Berhasil terhubung ke database:', res.rows[0]);
-
-    // Ensure all tables are created
-    await ensureTables(pool);
-
-    // Close old pool if replacing
-    if (pgPool && pgPool !== pool) {
-      try {
-        await pgPool.end();
-      } catch {}
+    const candidates: string[] = [cleanStr];
+    const alt = getAlternativeSupabaseUrl(cleanStr);
+    if (alt && alt !== cleanStr) {
+      candidates.push(alt);
     }
 
-    pgPool = pool;
-    currentConnString = cleanStr;
-    lastError = null;
+    let lastConnectErr: any = null;
 
-    saveRuntimeConfig({ connectionString: currentConnString, databaseName: res.rows[0]?.db || 'postgres' });
-    return { success: true };
-  } catch (err: any) {
-    console.warn('[Supabase PG] Gagal terhubung:', err.message);
-    lastError = err.message || 'Gagal terhubung ke PostgreSQL Supabase.';
+    for (const candidate of candidates) {
+      let pool: Pool | null = null;
+      try {
+        console.log(`[Supabase PG] Mencoba koneksi ke: ${maskConnectionString(candidate)}`);
+        pool = new Pool({
+          connectionString: candidate,
+          ssl: { rejectUnauthorized: false },
+          connectionTimeoutMillis: 10000,
+          idleTimeoutMillis: 30000,
+          max: 10,
+        });
+
+        pool.on('error', (err) => {
+          console.error('[Supabase PG Pool Error]', err);
+        });
+
+        // Test query
+        const res = await pool.query('SELECT current_database() as db, NOW() as now');
+        console.log('[Supabase PG] Berhasil terhubung ke database:', res.rows[0]);
+
+        // Ensure all tables are created
+        await ensureTables(pool);
+
+        // Close old pool if replacing
+        if (pgPool && pgPool !== pool) {
+          try {
+            await pgPool.end();
+          } catch {}
+        }
+
+        pgPool = pool;
+        currentConnString = candidate;
+        lastError = null;
+
+        saveRuntimeConfig({ connectionString: currentConnString, databaseName: res.rows[0]?.db || 'postgres' });
+        return { success: true };
+      } catch (err: any) {
+        console.warn(`[Supabase PG] Gagal dengan kandidat (${maskConnectionString(candidate)}):`, err.message);
+        lastConnectErr = err;
+        if (pool) {
+          try {
+            await pool.end();
+          } catch {}
+        }
+      }
+    }
+
+    lastError = lastConnectErr?.message || 'Gagal terhubung ke PostgreSQL Supabase.';
     return { success: false, error: lastError || undefined };
   } finally {
     isConnecting = false;
   }
 }
 
-// Auto-connect to PostgreSQL on boot
+// Auto-connect to PostgreSQL on boot with retry
 export async function initPostgres() {
   const config = loadRuntimeConfig();
   if (!config.connectionString) {
     console.log('[Supabase PG] Connection string tidak diatur — database in-memory aktif.');
     return null;
   }
-  console.log('[Supabase PG] Menghubungkan ke Supabase PostgreSQL...');
-  await connectToPostgres(config.connectionString);
+  console.log('[Supabase PG] Menghubungkan otomatis ke Supabase PostgreSQL...');
+  const res = await connectToPostgres(config.connectionString);
+  if (res.success) {
+    console.log('[Supabase PG] Auto-connect ke Supabase berhasil!');
+  } else {
+    console.warn('[Supabase PG] Auto-connect awal belum berhasil:', res.error);
+  }
   return pgPool;
 }
 
