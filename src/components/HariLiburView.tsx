@@ -132,33 +132,20 @@ export const HariLiburView: React.FC<HariLiburViewProps> = ({
   };
 
   return (
-    <div className="space-y-6 pb-16 md:pb-6">
-      {/* Top Header Card */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-5 sm:p-6 shadow-xs">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-emerald-800">
-              <CalendarOff className="w-3.5 h-3.5" />
-              <span>Kalender Akademik</span>
-            </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">
-              Pengaturan Hari Libur
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-2xl">
-              Atur libur tanggal tunggal maupun rentang tanggal dengan kombinasi fleksibel (contoh: Mengajar & Tahfidz Pagi libur, sedangkan Tahfidz Sore tetap masuk).
-            </p>
-          </div>
+    <div className="space-y-4 pb-16 md:pb-6">
+      {/* Action Toolbar (Tanpa Banner Hero) */}
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs text-slate-500 font-medium">
+          Total <strong>{holidays.length}</strong> Agenda Libur Terdaftar
+        </span>
 
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={handleOpenAddModal}
-              className="px-3.5 py-2 text-xs sm:text-sm font-medium bg-emerald-700 text-white hover:bg-emerald-800 rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Tambah Hari Libur</span>
-            </button>
-          </div>
-        </div>
+        <button
+          onClick={handleOpenAddModal}
+          className="px-3.5 py-2 text-xs font-semibold bg-emerald-700 text-white hover:bg-emerald-800 rounded-xl transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          <span>Tambah Hari Libur</span>
+        </button>
       </div>
 
       {/* Bagian 1: Libur Pekanan Otomatis (Hasil Analisis Jadwal) */}

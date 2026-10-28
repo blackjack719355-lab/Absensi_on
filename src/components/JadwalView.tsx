@@ -203,64 +203,45 @@ export const JadwalView: React.FC<JadwalViewProps> = ({
   };
 
   return (
-    <div className="space-y-6 pb-16 md:pb-6">
-      {/* Top Card Header */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-5 sm:p-6 shadow-xs">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
-              Jadwal Mengajar & Tahfidz Guru
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-600 mt-1">
-              Format alokasi jam mengajar dan tahfidz per hari (Senin s.d. Minggu).
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            {/* Tombol Unduh Template Excel */}
-            <button
-              onClick={downloadScheduleTemplate}
-              className="px-3.5 py-2 text-xs sm:text-sm font-medium border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 rounded-xl transition flex items-center gap-2"
-            >
-              <Download className="w-4 h-4 text-slate-500" />
-              <span>Template Excel</span>
-            </button>
-
-            {/* Tombol Impor Excel */}
-            <button
-              onClick={() => setIsImportModalOpen(true)}
-              className="px-3.5 py-2 text-xs sm:text-sm font-medium bg-emerald-700 text-white hover:bg-emerald-800 rounded-xl transition flex items-center gap-2 shadow-xs"
-            >
-              <FileSpreadsheet className="w-4 h-4" />
-              <span>Impor Excel</span>
-            </button>
-
-            {/* Tombol Tambah Manual */}
-            <button
-              onClick={handleOpenAddModal}
-              className="px-3.5 py-2 text-xs sm:text-sm font-medium border border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 rounded-xl transition flex items-center gap-1.5"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Tambah Guru</span>
-            </button>
-          </div>
+    <div className="space-y-4 pb-16 md:pb-6">
+      {/* Action Toolbar (Tanpa Banner Hero) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="relative w-full sm:w-72">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Cari nama guru..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-xl bg-white shadow-2xs focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-800"
+          />
         </div>
 
-        {/* Search */}
-        <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
-          <div className="relative w-full md:w-80">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Cari nama guru..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 text-slate-800"
-            />
-          </div>
-          <span className="text-xs text-slate-500">
-            Total <strong>{filteredSchedules.length}</strong> Guru Terdaftar
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-slate-500 font-medium mr-1 hidden lg:inline">
+            Total <strong>{filteredSchedules.length}</strong> Guru
           </span>
+          <button
+            onClick={downloadScheduleTemplate}
+            className="px-3 py-1.5 text-xs font-semibold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 rounded-xl transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5 text-slate-500" />
+            <span>Template</span>
+          </button>
+          <button
+            onClick={() => setIsImportModalOpen(true)}
+            className="px-3 py-1.5 text-xs font-semibold bg-emerald-700 text-white hover:bg-emerald-800 rounded-xl transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            <span>Impor Excel</span>
+          </button>
+          <button
+            onClick={handleOpenAddModal}
+            className="px-3 py-1.5 text-xs font-semibold border border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 rounded-xl transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Tambah Guru</span>
+          </button>
         </div>
       </div>
 
