@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { 
   Users, Clock, Award, Check, X, RotateCcw, AlertCircle, 
-  CheckCircle2, BookOpen, Sparkles, Filter, CalendarOff, Calendar 
+  CheckCircle2, BookOpen, Sparkles, Filter, CalendarOff, Calendar,
+  Save 
 } from 'lucide-react';
 import { AttendanceCheckStatus, DayOfWeek, HolidayItem, Teacher, TeacherScheduleRow } from '../types';
 import { storage, getLocalDateString, getLocalDayOfWeek } from '../services/storage';
@@ -81,41 +82,78 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
     return hours.tahfidz > 0;
   });
 
+  // Status feedback penyimpanan (Auto-Save & Manual)
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showSaveSuccess = (message: string) => {
+    setSaveStatus('saving');
+    setTimeout(() => {
+      setSaveStatus('saved');
+      setToastMessage(message);
+      setTimeout(() => setToastMessage(null), 3500);
+    }, 200);
+  };
+
+  const notifyAutoSave = () => {
+    setSaveStatus('saving');
+    setTimeout(() => {
+      setSaveStatus('saved');
+    }, 200);
+  };
+
+  // Tombol Simpan Presensi Manual (Memberikan kepastian penuh kepada pengguna)
+  const handleManualSave = () => {
+    storage.saveAttendances();
+    onRefreshData();
+    showSaveSuccess(`Presensi hari ${selectedDay}, ${formatIndoDate(quickDate)} berhasil disimpan & disinkronkan ke Rekap Bulanan!`);
+  };
+
   // Toggle status checkbox per jam/slot sesi
   const handleToggleSlot = (teacherId: string, type: 'mengajar' | 'tahfidz', slotIndex: number) => {
     storage.toggleTeacherSlotAttendance(quickDate, teacherId, type, slotIndex, selectedDay);
+    notifyAutoSave();
     onRefreshData();
   };
 
   // Set semua slot presensi untuk guru tertentu (1-tap pada mobile)
   const handleSetTeacherSlots = (teacherId: string, type: 'mengajar' | 'tahfidz', status: AttendanceCheckStatus) => {
     storage.setTeacherSlotsForSection(quickDate, teacherId, type, status, selectedDay);
+    notifyAutoSave();
     onRefreshData();
   };
 
   // Bulk actions per bagian (Mengajar / Tahfidz)
   const handleMarkSectionHadir = (type: 'mengajar' | 'tahfidz') => {
     storage.setSectionAttendance(quickDate, type, 'hadir', selectedDay);
+    notifyAutoSave();
     onRefreshData();
+    showSaveSuccess(`Semua guru ${type === 'mengajar' ? 'Mengajar' : 'Tahfidz'} ditandai hadir & tersimpan!`);
   };
 
   const handleResetSection = (type: 'mengajar' | 'tahfidz') => {
     storage.setSectionAttendance(quickDate, type, 'belum_absen', selectedDay);
+    notifyAutoSave();
     onRefreshData();
+    showSaveSuccess(`Presensi ${type === 'mengajar' ? 'Mengajar' : 'Tahfidz'} berhasil dikosongkan.`);
   };
 
   // Tandai semua hadir hari ini
   const handleMarkAllHadir = () => {
     storage.setSectionAttendance(quickDate, 'mengajar', 'hadir', selectedDay);
     storage.setSectionAttendance(quickDate, 'tahfidz', 'hadir', selectedDay);
+    notifyAutoSave();
     onRefreshData();
+    showSaveSuccess('Semua guru Mengajar & Tahfidz berhasil ditandai hadir dan tersimpan ke Rekap!');
   };
 
   // Kosongkan semua presensi hari ini
   const handleResetAllAttendance = () => {
     storage.setSectionAttendance(quickDate, 'mengajar', 'belum_absen', selectedDay);
     storage.setSectionAttendance(quickDate, 'tahfidz', 'belum_absen', selectedDay);
+    notifyAutoSave();
     onRefreshData();
+    showSaveSuccess('Presensi hari ini berhasil direset/dikosongkan.');
   };
 
   // Helper penamaan sesi Tahfidz (misal: Pagi / Sore saat ada libur parsial)
@@ -273,6 +311,30 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              {/* Indikator Status Auto-Save Real-time */}
+              <div 
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                  saveStatus === 'saving'
+                    ? 'bg-amber-50 text-amber-800 border-amber-200'
+                    : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                }`}
+                title="Sistem menyimpan presensi secara otomatis setiap kali Anda mencentang atau mengubah status"
+              >
+                <CheckCircle2 className={`w-3.5 h-3.5 ${saveStatus === 'saving' ? 'text-amber-600 animate-spin' : 'text-emerald-600'}`} />
+                <span>{saveStatus === 'saving' ? 'Menyimpan...' : 'Tersimpan Otomatis'}</span>
+              </div>
+
+              {/* Tombol Simpan Presensi untuk kepastian pengguna */}
+              <button
+                type="button"
+                onClick={handleManualSave}
+                className="px-3 py-1.5 text-xs font-bold bg-emerald-700 text-white hover:bg-emerald-800 active:scale-95 transition rounded-xl flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                title="Simpan & sinkronkan presensi hari ini ke Rekap Bulanan"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>Simpan Presensi</span>
+              </button>
+
               <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200/90 rounded-xl px-2.5 py-1.5 shadow-2xs">
                 <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                 <input
@@ -679,6 +741,34 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                       </tbody>
                     </table>
                   </div>
+
+                  {/* Footer Penjamin & Tombol Simpan Presensi Mengajar */}
+                  <div className="p-3.5 sm:p-4 bg-slate-50/90 border-t border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2 text-slate-600">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 animate-pulse"></span>
+                      <span>
+                        Status: <strong className="text-emerald-800">Tersimpan Otomatis</strong>. Setiap centang kehadiran langsung masuk ke Rekap Bulanan.
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={handleManualSave}
+                        className="px-3.5 py-2 text-xs font-bold rounded-xl bg-emerald-700 text-white hover:bg-emerald-800 active:scale-95 transition cursor-pointer shadow-xs flex items-center gap-1.5"
+                        title="Simpan & pastikan presensi mengajar tersinkron"
+                      >
+                        <Save className="w-3.5 h-3.5" />
+                        <span>Simpan Presensi</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onNavigateTab('rekap')}
+                        className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 transition cursor-pointer shadow-2xs"
+                      >
+                        Buka Rekap Bulanan →
+                      </button>
+                    </div>
+                  </div>
                 </>
               )}
             </div>
@@ -946,12 +1036,48 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                       </tbody>
                     </table>
                   </div>
+
+                  {/* Footer Penjamin & Tombol Simpan Presensi Tahfidz */}
+                  <div className="p-3.5 sm:p-4 bg-slate-50/90 border-t border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2 text-slate-600">
+                      <span className="w-2 h-2 rounded-full bg-teal-500 shrink-0 animate-pulse"></span>
+                      <span>
+                        Status: <strong className="text-teal-800">Tersimpan Otomatis</strong>. Setiap centang halaqah tahfidz langsung masuk ke Rekap Bulanan.
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={handleManualSave}
+                        className="px-3.5 py-2 text-xs font-bold rounded-xl bg-teal-700 text-white hover:bg-teal-800 active:scale-95 transition cursor-pointer shadow-xs flex items-center gap-1.5"
+                        title="Simpan & pastikan presensi tahfidz tersinkron"
+                      >
+                        <Save className="w-3.5 h-3.5" />
+                        <span>Simpan Presensi</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onNavigateTab('rekap')}
+                        className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 transition cursor-pointer shadow-2xs"
+                      >
+                        Buka Rekap Bulanan →
+                      </button>
+                    </div>
+                  </div>
                 </>
               )}
             </div>
           )}
         </div>
       </div>
+
+      {/* Toast Notifikasi Feedback Simpan */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-xl border border-slate-700 text-xs sm:text-sm animate-in fade-in slide-in-from-bottom-3 duration-200 max-w-md">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span className="font-medium">{toastMessage}</span>
+        </div>
+      )}
 
     </div>
   );
