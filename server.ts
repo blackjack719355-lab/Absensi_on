@@ -63,7 +63,11 @@ const memoryStore: StoreData = {
 };
 
 class InMemoryCollection {
-  constructor(private collectionName: keyof StoreData) {}
+  private collectionName: keyof StoreData;
+
+  constructor(collectionName: keyof StoreData) {
+    this.collectionName = collectionName;
+  }
 
   find(filter: any = {}) {
     let items = memoryStore[this.collectionName] || [];
@@ -434,17 +438,26 @@ initPostgres().catch(err => {
   console.warn('[Supabase PG] Info koneksi awal:', err.message || err);
 });
 
-async function startServer() {
-  const app = express();
-  const isProd = !!process.env.K_SERVICE || process.env.NODE_ENV === 'production' || process.env.npm_lifecycle_event === 'start';
-  const isDev = !isProd;
-  const PORT = parseInt(process.env.PORT || '3000', 10);
+export const app = express();
 
-  app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '10mb' }));
 
-  // ==========================================
-  // API ROUTES: SUPABASE POSTGRES CONFIG & STATUS
-  // ==========================================
+// Middleware auto-reconnect untuk serverless / cold-start:
+// Memastikan pgPool terhubung sebelum memproses endpoint /api
+app.use('/api', async (_req: Request, _res: Response, next) => {
+  if (!pgPool && !isConnecting) {
+    try {
+      await initPostgres();
+    } catch (e: any) {
+      console.warn('[Supabase PG Middleware] Auto-reconnect error:', e.message);
+    }
+  }
+  next();
+});
+
+// ==========================================
+// API ROUTES: SUPABASE POSTGRES CONFIG & STATUS
+// ==========================================
 
   app.get('/api/supabase/status', async (req: Request, res: Response) => {
     const isConnected = !!pgPool;
@@ -1060,48 +1073,59 @@ async function startServer() {
   });
 
   // ==========================================
-  // VITE / STATIC SERVING
+  // VITE / STATIC SERVING & STANDALONE SERVER
   // ==========================================
-  const distPath = path.resolve(__dirname, 'dist');
-  const hasDist = fs.existsSync(path.resolve(distPath, 'index.html'));
+  export default app;
 
-  if (!isDev && hasDist) {
-    console.log('[absensi-on] Menjalankan dalam mode produksi (Static dist)');
-    app.use(express.static(distPath));
-    app.get('*', (req: Request, res: Response) => {
-      res.sendFile(path.resolve(distPath, 'index.html'));
+  async function startServer() {
+    const isProd = !!process.env.K_SERVICE || process.env.NODE_ENV === 'production' || process.env.npm_lifecycle_event === 'start';
+    const isDev = !isProd;
+    const PORT = parseInt(process.env.PORT || '3000', 10);
+
+    const distPath = path.resolve(__dirname, 'dist');
+    const hasDist = fs.existsSync(path.resolve(distPath, 'index.html'));
+
+    if (!isDev && hasDist) {
+      console.log('[absensi-on] Menjalankan dalam mode produksi (Static dist)');
+      app.use(express.static(distPath));
+      app.get('*', (req: Request, res: Response) => {
+        res.sendFile(path.resolve(distPath, 'index.html'));
+      });
+    } else if (isDev) {
+      console.log('[absensi-on] Menjalankan dalam mode development (Vite middleware)');
+      const { createServer: createViteServer } = await import('vite');
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: 'spa',
+      });
+      app.use(vite.middlewares);
+    }
+
+    // Global Error Handler
+    app.use((err: any, req: Request, res: Response, next: any) => {
+      console.error('[absensi-on Server Error]', err);
+      if (res.headersSent) {
+        return next(err);
+      }
+      if (req.path.startsWith('/api/')) {
+        res.status(500).json({
+          success: false,
+          error: err.message || 'Terjadi kesalahan internal pada server backend.',
+        });
+      } else {
+        res.status(500).send('Internal Server Error');
+      }
     });
-  } else {
-    console.log('[absensi-on] Menjalankan dalam mode development (Vite middleware)');
-    const { createServer: createViteServer } = await import('vite');
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
+
+    if (!process.env.VERCEL) {
+      app.listen(PORT, '0.0.0.0', () => {
+        console.log(`[absensi-on] Fullstack Server berjalan pada http://0.0.0.0:${PORT}`);
+      });
+    }
   }
 
-  // Global Error Handler
-  app.use((err: any, req: Request, res: Response, next: any) => {
-    console.error('[absensi-on Server Error]', err);
-    if (res.headersSent) {
-      return next(err);
-    }
-    if (req.path.startsWith('/api/')) {
-      res.status(500).json({
-        success: false,
-        error: err.message || 'Terjadi kesalahan internal pada server backend.',
-      });
-    } else {
-      res.status(500).send('Internal Server Error');
-    }
-  });
-
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[absensi-on] Fullstack Server berjalan pada http://0.0.0.0:${PORT}`);
-  });
-}
-
-startServer().catch(err => {
-  console.error('Gagal menjalankan server:', err);
-});
+  if (!process.env.VERCEL) {
+    startServer().catch(err => {
+      console.error('Gagal menjalankan server:', err);
+    });
+  }
