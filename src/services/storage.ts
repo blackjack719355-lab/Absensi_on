@@ -9,6 +9,7 @@ const STORAGE_KEY_SCHEDULES = 'absensi_on_schedules_v2';
 const STORAGE_KEY_HOLIDAYS = 'absensi_on_holidays_v2';
 const STORAGE_KEY_ATTENDANCE = 'absensi_on_attendance_v2';
 const STORAGE_KEY_CONFIG = 'absensi_on_supabase_config_v1';
+const STORAGE_KEY_AUTO_SYNC = 'absensi_on_auto_sync_on_launch_v1';
 
 export interface SupabaseConfig {
   connectionString?: string;
@@ -25,6 +26,7 @@ export interface SupabaseConfig {
     holidays: number;
     attendances: number;
   };
+  autoSyncOnLaunch?: boolean;
 }
 
 // Backward-compat type alias
@@ -268,6 +270,7 @@ class StorageRepository {
   private holidays: HolidayItem[] = [];
   private attendances: DailyAttendanceRecord[] = [];
   private listeners: Array<() => void> = [];
+  private autoSyncOnLaunch: boolean = true;
   private supabaseConfig: SupabaseConfig = {
     url: '',
     anonKey: '',
@@ -275,6 +278,7 @@ class StorageRepository {
     status: 'offline_sync',
     lastSyncedAt: new Date().toISOString(),
     error: null,
+    autoSyncOnLaunch: true,
   };
 
   constructor() {
@@ -336,6 +340,16 @@ class StorageRepository {
       if (savedConfig) {
         this.supabaseConfig = { ...this.supabaseConfig, ...JSON.parse(savedConfig) };
       }
+
+      const savedAutoSync = localStorage.getItem(STORAGE_KEY_AUTO_SYNC);
+      if (savedAutoSync !== null) {
+        this.autoSyncOnLaunch = savedAutoSync === 'true';
+      } else if (this.supabaseConfig.autoSyncOnLaunch !== undefined) {
+        this.autoSyncOnLaunch = Boolean(this.supabaseConfig.autoSyncOnLaunch);
+      } else {
+        this.autoSyncOnLaunch = true;
+      }
+      this.supabaseConfig.autoSyncOnLaunch = this.autoSyncOnLaunch;
     } catch (e) {
       this.teachers = INITIAL_TEACHERS;
       this.schedules = INITIAL_SCHEDULES;
@@ -344,8 +358,10 @@ class StorageRepository {
     }
 
     this.syncAutomaticWeeklyHolidays();
-    // Sinkronisasi otomatis dengan database Supabase (sumber kebenaran persisten)
-    this.syncWithBackend();
+    // Sinkronisasi otomatis dengan database Supabase saat aplikasi dibuka jika toggle aktif
+    if (this.autoSyncOnLaunch) {
+      this.syncWithBackend();
+    }
   }
 
   // Cek status koneksi Supabase di backend dan ambil data jika terhubung (dengan auto-retry saat cold-start)
@@ -382,6 +398,7 @@ class StorageRepository {
           lastSyncedAt: new Date().toISOString(),
           error: statusData.connected ? null : (statusData.error || null),
           counts: statusData.counts,
+          autoSyncOnLaunch: this.autoSyncOnLaunch,
         };
         if (statusData.connected) {
           this.supabaseConfig.error = null;
@@ -673,11 +690,31 @@ class StorageRepository {
 
   public saveConfig(config: Partial<SupabaseConfig>) {
     this.supabaseConfig = { ...this.supabaseConfig, ...config };
+    if (config.autoSyncOnLaunch !== undefined) {
+      this.autoSyncOnLaunch = config.autoSyncOnLaunch;
+      try {
+        localStorage.setItem(STORAGE_KEY_AUTO_SYNC, String(this.autoSyncOnLaunch));
+      } catch {}
+    }
     this.saveConfigLocally(this.supabaseConfig);
   }
 
   public getConfig(): SupabaseConfig {
-    return { ...this.supabaseConfig };
+    return { ...this.supabaseConfig, autoSyncOnLaunch: this.autoSyncOnLaunch };
+  }
+
+  public isAutoSyncOnLaunch(): boolean {
+    return this.autoSyncOnLaunch;
+  }
+
+  public setAutoSyncOnLaunch(enabled: boolean): void {
+    this.autoSyncOnLaunch = enabled;
+    this.supabaseConfig.autoSyncOnLaunch = enabled;
+    try {
+      localStorage.setItem(STORAGE_KEY_AUTO_SYNC, String(enabled));
+      this.saveConfigLocally(this.supabaseConfig);
+    } catch {}
+    this.notifyListeners();
   }
 
   public resetAllAttendances() {

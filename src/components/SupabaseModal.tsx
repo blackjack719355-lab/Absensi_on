@@ -28,6 +28,11 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
   );
   const [showConnStr, setShowConnStr] = useState(false);
 
+  // Auto-sync on launch toggle state
+  const [autoSyncOnLaunch, setAutoSyncOnLaunch] = useState<boolean>(
+    config.autoSyncOnLaunch ?? storage.isAutoSyncOnLaunch()
+  );
+
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectSuccess, setConnectSuccess] = useState<string | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
@@ -46,6 +51,12 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
   }, [isOpen]);
 
   useEffect(() => {
+    if (config.autoSyncOnLaunch !== undefined) {
+      setAutoSyncOnLaunch(config.autoSyncOnLaunch);
+    }
+  }, [config.autoSyncOnLaunch]);
+
+  useEffect(() => {
     if (config.status === 'connected') {
       setConnectError(null);
     } else if (config.error) {
@@ -55,6 +66,18 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
       setConnectionString(config.connectionString);
     }
   }, [config.status, config.error, config.connectionString]);
+
+  const handleToggleAutoSync = (enabled: boolean) => {
+    setAutoSyncOnLaunch(enabled);
+    storage.setAutoSyncOnLaunch(enabled);
+    setSyncStatus(
+      enabled
+        ? 'Sinkronisasi otomatis saat aplikasi dibuka: DIAKTIFKAN'
+        : 'Sinkronisasi otomatis saat aplikasi dibuka: DINONAKTIFKAN (Mode manual)'
+    );
+    onRefreshData();
+    setTimeout(() => setSyncStatus(null), 3000);
+  };
 
   if (!isOpen) return null;
 
@@ -336,6 +359,64 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
                   </div>
                 </div>
               )}
+
+              {/* Pengaturan Sinkronisasi Otomatis Saat Aplikasi Dibuka */}
+              <div className="p-4 bg-slate-50/80 border border-slate-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all hover:border-slate-300">
+                <div className="flex items-start gap-3.5">
+                  <div
+                    className={`p-2.5 rounded-xl shrink-0 transition-colors ${
+                      autoSyncOnLaunch ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'
+                    }`}
+                  >
+                    <RefreshCw className={`w-5 h-5 ${autoSyncOnLaunch && isSyncing ? 'animate-spin' : ''}`} />
+                  </div>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold text-slate-800 text-sm">
+                        Sinkronisasi Otomatis Saat Aplikasi Dibuka
+                      </span>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                          autoSyncOnLaunch
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-slate-100 text-slate-600 border-slate-200'
+                        }`}
+                      >
+                        {autoSyncOnLaunch ? 'Aktif (Otomatis)' : 'Nonaktif (Manual Saja)'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                      {autoSyncOnLaunch
+                        ? 'Aplikasi secara otomatis menarik data guru, jadwal, dan presensi terbaru dari Supabase PostgreSQL setiap kali aplikasi pertama kali dimuat.'
+                        : 'Aplikasi memuat data langsung dari memori lokal (offline-first). Sinkronisasi ke Supabase hanya berjalan jika Anda menekan tombol Segarkan / Tarik Data secara manual.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={autoSyncOnLaunch}
+                    onClick={() => handleToggleAutoSync(!autoSyncOnLaunch)}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${
+                      autoSyncOnLaunch ? 'bg-emerald-600' : 'bg-slate-300'
+                    }`}
+                    title={
+                      autoSyncOnLaunch
+                        ? 'Klik untuk menonaktifkan sinkronisasi otomatis saat aplikasi dibuka'
+                        : 'Klik untuk mengaktifkan sinkronisasi otomatis saat aplikasi dibuka'
+                    }
+                  >
+                    <span className="sr-only">Toggle sinkronisasi otomatis saat aplikasi dibuka</span>
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                        autoSyncOnLaunch ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
 
               {/* Form Input PostgreSQL Connection String */}
               <form onSubmit={handleConnect} className="space-y-4 pt-1">
