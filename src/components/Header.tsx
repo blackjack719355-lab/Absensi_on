@@ -1,6 +1,7 @@
 import React from 'react';
 import { Database, Calendar, BookOpen } from 'lucide-react';
 import { SupabaseConfig } from '../services/storage';
+import { ThemeToggle } from './ThemeToggle';
 
 interface HeaderProps {
   supabaseConfig?: SupabaseConfig;
@@ -35,30 +36,34 @@ export const Header: React.FC<HeaderProps> = ({
   const isConnected = config.status === 'connected';
 
   return (
-    <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
+    <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 transition-colors duration-150">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 gap-4">
+        <div className="flex items-center justify-between h-16 gap-3 sm:gap-4">
           {/* Brand Wordmark */}
           <div className="flex items-center gap-3 shrink-0">
-            <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-sm">
+            <div className="w-9 h-9 rounded-xl bg-emerald-600 dark:bg-emerald-500 text-white flex items-center justify-center font-bold shadow-sm">
               <BookOpen className="w-5 h-5 text-emerald-50" />
             </div>
             <div>
-              <span className="text-xl font-bold tracking-tight text-slate-900 block leading-tight">
+              <span className="text-xl font-bold tracking-tight text-slate-900 dark:text-white block leading-tight">
                 absensi-on
               </span>
-              <span className="text-[11px] text-slate-500 font-medium hidden sm:block">
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium hidden sm:block">
                 Sistem Absensi Guru Mengajar & Tahfidz
               </span>
             </div>
           </div>
 
-          {/* Date & System Status */}
-          <div className="flex items-center gap-3 sm:gap-4 shrink-0">
-            <div className="hidden md:flex items-center gap-2 text-xs text-slate-600 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
-              <Calendar className="w-3.5 h-3.5 text-slate-400" />
+          {/* Date, Theme Toggle & Database Status */}
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            {/* Tanggal Hari Ini */}
+            <div className="hidden lg:flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
+              <Calendar className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
               <span>{currentDateStr}</span>
             </div>
+
+            {/* Pengaturan Tema Terang / Gelap */}
+            <ThemeToggle showLabel={false} />
 
             {/* Supabase Online Indicator Button */}
             <button
@@ -66,11 +71,11 @@ export const Header: React.FC<HeaderProps> = ({
               title={isConnected ? 'Database Supabase Online Terhubung' : 'Supabase Belum Terhubung (Klik untuk Menghubungkan)'}
               className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-colors shrink-0 shadow-2xs cursor-pointer ${
                 isConnected
-                  ? 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                  : 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100'
+                  ? 'border-emerald-300 dark:border-emerald-800/80 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60'
+                  : 'border-amber-300 dark:border-amber-800/80 bg-amber-50 dark:bg-amber-950/50 text-amber-900 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/60'
               }`}
             >
-              <Database className={`w-3.5 h-3.5 ${isConnected ? 'text-emerald-700' : 'text-amber-700'}`} />
+              <Database className={`w-3.5 h-3.5 ${isConnected ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`} />
               <span className="hidden sm:inline">
                 {isConnected ? 'Supabase Terhubung' : 'Hubungkan Supabase'}
               </span>

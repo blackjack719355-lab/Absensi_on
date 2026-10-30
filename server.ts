@@ -1078,20 +1078,24 @@ app.use('/api', async (_req: Request, _res: Response, next) => {
   export default app;
 
   async function startServer() {
-    const isProd = !!process.env.K_SERVICE || process.env.NODE_ENV === 'production' || process.env.npm_lifecycle_event === 'start';
-    const isDev = !isProd;
-    const PORT = parseInt(process.env.PORT || '3000', 10);
+    const isExplicitDev = process.env.npm_lifecycle_event === 'dev' || process.env.NODE_ENV === 'development';
+    const isExplicitProd = (process.env.NODE_ENV === 'production' || process.env.npm_lifecycle_event === 'start') && !isExplicitDev;
+
+    // Parse port from CLI args (e.g. --port 3000) or environment
+    const portArgIndex = process.argv.indexOf('--port');
+    const portFromArg = portArgIndex !== -1 && process.argv[portArgIndex + 1] ? parseInt(process.argv[portArgIndex + 1], 10) : NaN;
+    const PORT = !isNaN(portFromArg) ? portFromArg : parseInt(process.env.PORT || '3000', 10);
 
     const distPath = path.resolve(__dirname, 'dist');
     const hasDist = fs.existsSync(path.resolve(distPath, 'index.html'));
 
-    if (!isDev && hasDist) {
+    if (hasDist && isExplicitProd) {
       console.log('[absensi-on] Menjalankan dalam mode produksi (Static dist)');
       app.use(express.static(distPath));
       app.get('*', (req: Request, res: Response) => {
         res.sendFile(path.resolve(distPath, 'index.html'));
       });
-    } else if (isDev) {
+    } else {
       console.log('[absensi-on] Menjalankan dalam mode development (Vite middleware)');
       const { createServer: createViteServer } = await import('vite');
       const vite = await createViteServer({

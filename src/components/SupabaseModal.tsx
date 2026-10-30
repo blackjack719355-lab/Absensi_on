@@ -195,10 +195,10 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-2xl w-full border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[92vh]">
         
         {/* Header Modal */}
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-emerald-700 via-emerald-800 to-teal-800 text-white">
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-gradient-to-r from-emerald-700 via-emerald-800 to-teal-800 text-white">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center text-emerald-300 border border-white/10 shadow-inner">
               <Database className="w-5 h-5" />
@@ -220,13 +220,13 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
         </div>
 
         {/* Tab Navigasi */}
-        <div className="flex border-b border-slate-200 bg-slate-50 px-6 pt-2 gap-2 text-xs font-semibold text-slate-600">
+        <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80 px-6 pt-2 gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
           <button
             onClick={() => setActiveTab('config')}
             className={`pb-2.5 px-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'config'
-                ? 'border-emerald-600 text-emerald-700 font-bold'
-                : 'border-transparent hover:text-slate-900'
+                ? 'border-emerald-600 text-emerald-700 dark:text-emerald-400 font-bold'
+                : 'border-transparent hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
             <Server className="w-4 h-4" />
@@ -236,8 +236,8 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
             onClick={() => setActiveTab('sql')}
             className={`pb-2.5 px-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'sql'
-                ? 'border-emerald-600 text-emerald-700 font-bold'
-                : 'border-transparent hover:text-slate-900'
+                ? 'border-emerald-600 text-emerald-700 dark:text-emerald-400 font-bold'
+                : 'border-transparent hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
             <Code className="w-4 h-4" />
@@ -247,8 +247,8 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
             onClick={() => setActiveTab('guide')}
             className={`pb-2.5 px-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'guide'
-                ? 'border-emerald-600 text-emerald-700 font-bold'
-                : 'border-transparent hover:text-slate-900'
+                ? 'border-emerald-600 text-emerald-700 dark:text-emerald-400 font-bold'
+                : 'border-transparent hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
             <HelpCircle className="w-4 h-4" />
@@ -266,8 +266,8 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
               <div
                 className={`p-4 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
                   config.status === 'connected'
-                    ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
-                    : 'bg-amber-50/80 border-amber-200 text-amber-900'
+                    ? 'bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200'
+                    : 'bg-amber-50/80 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200'
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -280,12 +280,12 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
                     <div className="font-semibold text-sm flex items-center gap-2">
                       <span>{config.status === 'connected' ? 'Supabase PostgreSQL Terhubung & Aktif' : 'Mode Offline (Penyimpanan Lokal)'}</span>
                       {config.status === 'connected' && (
-                        <span className="text-[10px] bg-emerald-200 text-emerald-800 font-bold px-2 py-0.5 rounded-md">
+                        <span className="text-[10px] bg-emerald-200 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 font-bold px-2 py-0.5 rounded-md">
                           PostgreSQL 15+
                         </span>
                       )}
                     </div>
-                    <div className="text-xs opacity-85 mt-0.5 font-mono break-all">
+                    <div className="text-xs opacity-85 mt-0.5 font-mono break-all text-slate-700 dark:text-slate-300">
                       {config.status === 'connected' ? (
                         <span>{displayMasked}</span>
                       ) : (
@@ -300,7 +300,7 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
                     <button
                       onClick={handlePullFromSupabase}
                       disabled={isSyncing}
-                      className="px-2.5 py-1.5 text-xs font-semibold bg-white text-emerald-800 border border-emerald-300 rounded-lg shadow-2xs hover:bg-emerald-50 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      className="px-2.5 py-1.5 text-xs font-semibold bg-white dark:bg-slate-800 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 rounded-lg shadow-2xs hover:bg-emerald-50 dark:hover:bg-slate-700 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                       title="Tarik data terbaru dari server Supabase"
                     >
                       <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
@@ -308,7 +308,7 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
                     </button>
                     <button
                       onClick={() => setShowDisconnectConfirm(true)}
-                      className="px-2.5 py-1.5 text-xs font-semibold text-red-600 bg-white border border-red-200 rounded-lg shadow-2xs hover:bg-red-50 flex items-center gap-1 cursor-pointer"
+                      className="px-2.5 py-1.5 text-xs font-semibold text-red-600 dark:text-rose-400 bg-white dark:bg-slate-800 border border-red-200 dark:border-rose-900/60 rounded-lg shadow-2xs hover:bg-red-50 dark:hover:bg-slate-700 flex items-center gap-1 cursor-pointer"
                     >
                       <Unlink className="w-3.5 h-3.5" />
                       <span>Putuskan</span>
@@ -319,7 +319,7 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
 
               {/* Konfirmasi Putus Koneksi */}
               {showDisconnectConfirm && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-800 text-xs flex items-center justify-between gap-3">
+                <div className="p-3 bg-red-50 dark:bg-rose-950/40 border border-red-200 dark:border-rose-900/60 rounded-xl text-red-800 dark:text-rose-200 text-xs flex items-center justify-between gap-3">
                   <span>Putuskan koneksi dari Supabase? Aplikasi akan beralih ke penyimpanan lokal.</span>
                   <div className="flex items-center gap-2">
                     <button
@@ -330,7 +330,7 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
                     </button>
                     <button
                       onClick={() => setShowDisconnectConfirm(false)}
-                      className="px-2.5 py-1 font-medium bg-white text-slate-700 border border-slate-300 rounded-md hover:bg-slate-50 cursor-pointer"
+                      className="px-2.5 py-1 font-medium bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer"
                     >
                       Batal
                     </button>
@@ -341,51 +341,51 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
               {/* Document Statistics if connected */}
               {config.status === 'connected' && config.counts && (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
-                    <span className="text-[11px] text-slate-500 font-medium block">Guru Terdaftar</span>
-                    <span className="text-base font-bold text-slate-800">{config.counts.teachers}</span>
+                  <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-center">
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium block">Guru Terdaftar</span>
+                    <span className="text-base font-bold text-slate-800 dark:text-slate-100">{config.counts.teachers}</span>
                   </div>
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
-                    <span className="text-[11px] text-slate-500 font-medium block">Jadwal Mengajar</span>
-                    <span className="text-base font-bold text-slate-800">{config.counts.schedules}</span>
+                  <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-center">
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium block">Jadwal Mengajar</span>
+                    <span className="text-base font-bold text-slate-800 dark:text-slate-100">{config.counts.schedules}</span>
                   </div>
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
-                    <span className="text-[11px] text-slate-500 font-medium block">Hari Libur</span>
-                    <span className="text-base font-bold text-slate-800">{config.counts.holidays}</span>
+                  <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-center">
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium block">Hari Libur</span>
+                    <span className="text-base font-bold text-slate-800 dark:text-slate-100">{config.counts.holidays}</span>
                   </div>
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
-                    <span className="text-[11px] text-slate-500 font-medium block">Presensi Tercatat</span>
-                    <span className="text-base font-bold text-emerald-700">{config.counts.attendances}</span>
+                  <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-center">
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium block">Presensi Tercatat</span>
+                    <span className="text-base font-bold text-emerald-700 dark:text-emerald-400">{config.counts.attendances}</span>
                   </div>
                 </div>
               )}
 
               {/* Pengaturan Sinkronisasi Otomatis Saat Aplikasi Dibuka */}
-              <div className="p-4 bg-slate-50/80 border border-slate-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all hover:border-slate-300">
+              <div className="p-4 bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all hover:border-slate-300 dark:hover:border-slate-600">
                 <div className="flex items-start gap-3.5">
                   <div
                     className={`p-2.5 rounded-xl shrink-0 transition-colors ${
-                      autoSyncOnLaunch ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'
+                      autoSyncOnLaunch ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400' : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
                     }`}
                   >
                     <RefreshCw className={`w-5 h-5 ${autoSyncOnLaunch && isSyncing ? 'animate-spin' : ''}`} />
                   </div>
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold text-slate-800 text-sm">
+                      <span className="font-semibold text-slate-800 dark:text-slate-100 text-sm">
                         Sinkronisasi Otomatis Saat Aplikasi Dibuka
                       </span>
                       <span
                         className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                           autoSyncOnLaunch
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : 'bg-slate-100 text-slate-600 border-slate-200'
+                            ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
                         }`}
                       >
                         {autoSyncOnLaunch ? 'Aktif (Otomatis)' : 'Nonaktif (Manual Saja)'}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                       {autoSyncOnLaunch
                         ? 'Aplikasi secara otomatis menarik data guru, jadwal, dan presensi terbaru dari Supabase PostgreSQL setiap kali aplikasi pertama kali dimuat.'
                         : 'Aplikasi memuat data langsung dari memori lokal (offline-first). Sinkronisasi ke Supabase hanya berjalan jika Anda menekan tombol Segarkan / Tarik Data secara manual.'}
@@ -400,7 +400,7 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
                     aria-checked={autoSyncOnLaunch}
                     onClick={() => handleToggleAutoSync(!autoSyncOnLaunch)}
                     className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${
-                      autoSyncOnLaunch ? 'bg-emerald-600' : 'bg-slate-300'
+                      autoSyncOnLaunch ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-600'
                     }`}
                     title={
                       autoSyncOnLaunch
@@ -422,11 +422,11 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
               <form onSubmit={handleConnect} className="space-y-4 pt-1">
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                      <Database className="w-3.5 h-3.5 text-emerald-600" />
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <Database className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                       <span>PostgreSQL Connection String</span>
                     </label>
-                    <span className="text-[11px] text-slate-400">Format: postgresql://postgres:password@host:5432/postgres</span>
+                    <span className="text-[11px] text-slate-400 dark:text-slate-500">Format: postgresql://postgres:password@host:5432/postgres</span>
                   </div>
                   <div className="relative">
                     <input
@@ -434,33 +434,33 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
                       value={connectionString}
                       onChange={(e) => setConnectionString(e.target.value)}
                       placeholder="postgresql://postgres:[PASSWORD]@db.xxxx.supabase.co:5432/postgres"
-                      className="w-full text-xs font-mono px-3.5 py-2.5 pr-10 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-slate-50/50"
+                      className="w-full text-xs font-mono px-3.5 py-2.5 pr-10 rounded-xl border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-slate-50/50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                     />
                     <button
                       type="button"
                       onClick={() => setShowConnStr(!showConnStr)}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 p-1 cursor-pointer"
                       title={showConnStr ? 'Sembunyikan' : 'Tampilkan'}
                     >
                       {showConnStr ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
-                  <p className="text-[11px] text-slate-500 mt-1">
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
                     Sistem otomatis menghubungkan pool PostgreSQL secara langsung dengan SSL aman ke server Supabase.
                   </p>
                 </div>
 
                 {/* Feedback Message */}
                 {connectSuccess && (
-                  <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl flex items-center gap-2">
-                    <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs rounded-xl flex items-center gap-2">
+                    <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                     <span>{connectSuccess}</span>
                   </div>
                 )}
 
                 {connectError && (
-                  <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-start gap-2">
-                    <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                  <div className="p-3 bg-red-50 dark:bg-rose-950/40 border border-red-200 dark:border-rose-900/60 text-red-700 dark:text-rose-300 text-xs rounded-xl flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-red-500 dark:text-rose-400 shrink-0 mt-0.5" />
                     <div className="flex-1">
                       <p className="font-semibold">{connectError}</p>
                     </div>
@@ -468,8 +468,8 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
                 )}
 
                 {syncStatus && (
-                  <div className="p-3 bg-blue-50 border border-blue-200 text-blue-800 text-xs rounded-xl flex items-center gap-2">
-                    <Check className="w-4 h-4 text-blue-600 shrink-0" />
+                  <div className="p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200 text-xs rounded-xl flex items-center gap-2">
+                    <Check className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
                     <span>{syncStatus}</span>
                   </div>
                 )}
@@ -498,7 +498,7 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
                     type="button"
                     onClick={handleSyncToSupabase}
                     disabled={isSyncing || config.status !== 'connected'}
-                    className="w-full sm:w-auto py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40"
+                    className="w-full sm:w-auto py-2.5 px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40"
                     title={config.status !== 'connected' ? 'Hubungkan ke Supabase terlebih dahulu' : 'Upload data lokal ke Supabase'}
                   >
                     <Send className={`w-3.5 h-3.5 ${isSyncing ? 'animate-pulse' : ''}`} />
@@ -508,21 +508,21 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
               </form>
 
               {/* Cadangan & Pulihkan Lokal */}
-              <div className="pt-4 border-t border-slate-200">
-                <span className="text-xs font-bold text-slate-700 block mb-2">
+              <div className="pt-4 border-t border-slate-200 dark:border-slate-800">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-2">
                   Cadangan Berkas Lokal (JSON)
                 </span>
                 <div className="flex flex-wrap items-center gap-3">
                   <button
                     onClick={handleExportBackup}
-                    className="px-3 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                    className="px-3 py-2 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
-                    <Download className="w-3.5 h-3.5 text-slate-500" />
+                    <Download className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                     <span>Unduh Cadangan JSON</span>
                   </button>
 
-                  <label className="px-3 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer">
-                    <Upload className="w-3.5 h-3.5 text-slate-500" />
+                  <label className="px-3 py-2 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer">
+                    <Upload className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                     <span>Pulihkan dari JSON</span>
                     <input
                       type="file"
@@ -534,18 +534,18 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
 
                   <button
                     onClick={() => setShowClearAttendanceConfirm(true)}
-                    className="px-3 py-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ml-auto"
+                    className="px-3 py-2 bg-red-50 dark:bg-rose-950/40 hover:bg-red-100 dark:hover:bg-rose-900/50 border border-red-200 dark:border-rose-900/60 text-red-700 dark:text-rose-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ml-auto"
                   >
                     <span>Kosongkan Presensi</span>
                   </button>
                 </div>
 
                 {importStatus && (
-                  <p className="text-xs text-emerald-700 font-medium mt-2">{importStatus}</p>
+                  <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium mt-2">{importStatus}</p>
                 )}
 
                 {showClearAttendanceConfirm && (
-                  <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 flex items-center justify-between gap-3">
+                  <div className="mt-3 p-3 bg-red-50 dark:bg-rose-950/40 border border-red-200 dark:border-rose-900/60 rounded-xl text-xs text-red-800 dark:text-rose-200 flex items-center justify-between gap-3">
                     <span>Apakah Anda yakin ingin menghapus seluruh data presensi? (Guru & jadwal tetap aman)</span>
                     <div className="flex items-center gap-2">
                       <button
@@ -556,7 +556,7 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
                       </button>
                       <button
                         onClick={() => setShowClearAttendanceConfirm(false)}
-                        className="px-2.5 py-1 bg-white text-slate-700 border border-slate-300 rounded-md hover:bg-slate-50 cursor-pointer"
+                        className="px-2.5 py-1 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer"
                       >
                         Batal
                       </button>
@@ -570,11 +570,11 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
           {/* TAB 2: SKRIP SQL SKEMA */}
           {activeTab === 'sql' && (
             <div className="space-y-4">
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 text-emerald-900 text-xs flex items-start gap-3">
-                <Code className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
+              <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl p-3.5 text-emerald-900 dark:text-emerald-200 text-xs flex items-start gap-3">
+                <Code className="w-5 h-5 text-emerald-700 dark:text-emerald-400 shrink-0 mt-0.5" />
                 <div>
                   <p className="font-bold text-sm">Skema Database PostgreSQL Supabase</p>
-                  <p className="text-emerald-800/90 mt-1 leading-relaxed">
+                  <p className="text-emerald-800/90 dark:text-emerald-300/90 mt-1 leading-relaxed">
                     Tabel <code>teachers</code>, <code>schedules</code>, <code>holidays</code>, dan <code>attendances</code> telah otomatis dibuat oleh server saat terhubung. Skrip di bawah ini disediakan sebagai referensi struktur tabel PostgreSQL.
                   </p>
                 </div>
@@ -590,16 +590,16 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
                     <span>{copiedSql ? 'Tersalin ke Clipboard!' : 'Salin Skrip SQL'}</span>
                   </button>
                 </div>
-                <pre className="bg-slate-900 text-emerald-400 p-4 rounded-xl text-xs font-mono overflow-x-auto max-h-96 leading-relaxed border border-slate-800 select-all">
+                <pre className="bg-slate-900 dark:bg-slate-950 text-emerald-400 p-4 rounded-xl text-xs font-mono overflow-x-auto max-h-96 leading-relaxed border border-slate-800 select-all">
                   {SUPABASE_SQL_SETUP}
                 </pre>
               </div>
 
-              <div className="flex items-center justify-between text-xs text-slate-500 pt-2">
+              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 pt-2">
                 <span>Skema tabel sudah aktif dan tersinkronisasi otomatis dengan server.</span>
                 <button
                   onClick={() => setActiveTab('config')}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg font-bold cursor-pointer"
+                  className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg font-bold cursor-pointer"
                 >
                   Kembali ke Koneksi
                 </button>
@@ -611,37 +611,37 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
           {activeTab === 'guide' && (
             <div className="space-y-4">
               <div className="space-y-3">
-                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-start gap-3">
+                <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl flex items-start gap-3">
                   <span className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
                     ✓
                   </span>
                   <div>
-                    <h4 className="font-bold text-slate-900 text-xs">Koneksi Aktif Langsung</h4>
-                    <p className="text-slate-600 text-xs mt-1">
+                    <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs">Koneksi Aktif Langsung</h4>
+                    <p className="text-slate-600 dark:text-slate-400 text-xs mt-1">
                       Aplikasi telah dikonfigurasi dengan direct connection string PostgreSQL Supabase (<code>db.ugvxowesvhqjinmqdcje.supabase.co:5432</code>).
                     </p>
                   </div>
                 </div>
 
-                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-start gap-3">
+                <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl flex items-start gap-3">
                   <span className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
                     ✓
                   </span>
                   <div>
-                    <h4 className="font-bold text-slate-900 text-xs">Penyimpanan Otomatis &amp; Permanen</h4>
-                    <p className="text-slate-600 text-xs mt-1">
+                    <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs">Penyimpanan Otomatis &amp; Permanen</h4>
+                    <p className="text-slate-600 dark:text-slate-400 text-xs mt-1">
                       Setiap kali absensi dicentang atau tombol <strong>Simpan Presensi</strong> ditekan, data langsung disimpan ke PostgreSQL Supabase sehingga tidak akan hilang saat redeploy.
                     </p>
                   </div>
                 </div>
 
-                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-start gap-3">
+                <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl flex items-start gap-3">
                   <span className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
                     ✓
                   </span>
                   <div>
-                    <h4 className="font-bold text-slate-900 text-xs">Koneksi Terenkripsi (SSL)</h4>
-                    <p className="text-slate-600 text-xs mt-1">
+                    <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs">Koneksi Terenkripsi (SSL)</h4>
+                    <p className="text-slate-600 dark:text-slate-400 text-xs mt-1">
                       Koneksi menggunakan SSL terenkripsi antar-server untuk memastikan keamanan data absensi santri dan guru.
                     </p>
                   </div>
@@ -662,14 +662,14 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
         </div>
 
         {/* Footer Modal */}
-        <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
+        <div className="px-6 py-3.5 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
           <div className="flex items-center gap-1.5">
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
+            <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             <span>Penyimpanan PostgreSQL Terdistribusi</span>
           </div>
           <button
             onClick={onClose}
-            className="px-4 py-1.5 font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+            className="px-4 py-1.5 font-semibold text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
           >
             Tutup
           </button>

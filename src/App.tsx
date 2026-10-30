@@ -41,7 +41,7 @@ export default function App() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col selection:bg-emerald-100 selection:text-emerald-900">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col selection:bg-emerald-100 dark:selection:bg-emerald-900 selection:text-emerald-900 dark:selection:text-emerald-100 transition-colors duration-150">
       {/* Header Utama */}
       <Header
         supabaseConfig={supabaseConfig}
@@ -103,8 +103,8 @@ export default function App() {
       />
 
       {/* Footer Bersih & Elegan */}
-      <footer className="border-t border-slate-200/80 bg-white py-6 hidden md:block">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
+      <footer className="border-t border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 py-6 hidden md:block transition-colors duration-150">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 dark:text-slate-400 gap-2">
           <p>© 2026 absensi-on · Sistem Absensi Guru Mengajar & Tahfidz</p>
           <div className="flex items-center gap-4">
             <span>Didukung Database Supabase Online (PostgreSQL)</span>

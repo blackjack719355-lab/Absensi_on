@@ -202,111 +202,108 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
       {/* Tiga Metrik Utama Sederhana & Kompak pada Mobile */}
       <div className="grid grid-cols-3 gap-2 sm:gap-6">
         {/* 1. Jumlah Guru Aktif */}
-        <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-200/80 p-2.5 sm:p-6 shadow-xs">
+        <div className="bg-white dark:bg-slate-900 rounded-xl sm:rounded-2xl border border-slate-200/80 dark:border-slate-800 p-2.5 sm:p-6 shadow-xs">
           <div className="flex items-center sm:items-start justify-between">
             <div>
-              <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500">
+              <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 <span className="sm:hidden">Guru Aktif</span>
                 <span className="hidden sm:inline">Jumlah Guru Aktif</span>
               </p>
-              <h3 className="text-lg sm:text-3xl font-bold text-slate-900 mt-0.5 sm:mt-2 font-mono tabular-nums">
+              <h3 className="text-lg sm:text-3xl font-bold text-slate-900 dark:text-white mt-0.5 sm:mt-2 font-mono tabular-nums">
                 {activeTeachersCount}
               </h3>
-              <p className="text-xs text-slate-600 mt-1 hidden sm:block">
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 hidden sm:block">
                 Tenaga pendidik aktif di jadwal
               </p>
             </div>
-            <div className="w-7 h-7 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-slate-100 flex items-center justify-center text-slate-700 shrink-0">
+            <div className="w-7 h-7 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-700 dark:text-slate-300 shrink-0">
               <Users className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
             </div>
           </div>
-          <div className="mt-3 pt-2.5 border-t border-slate-100 text-xs text-slate-500 hidden sm:flex justify-between">
+          <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 hidden sm:flex justify-between">
             <span>Sesuai Data Jadwal</span>
-            <span className="font-semibold text-slate-800 font-mono">{schedules.length} Guru</span>
+            <span className="font-semibold text-slate-800 dark:text-slate-200 font-mono">{schedules.length} Guru</span>
           </div>
         </div>
 
         {/* 2. Jam Per Minggu */}
-        <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-200/80 p-2.5 sm:p-6 shadow-xs">
+        <div className="bg-white dark:bg-slate-900 rounded-xl sm:rounded-2xl border border-slate-200/80 dark:border-slate-800 p-2.5 sm:p-6 shadow-xs">
           <div className="flex items-center sm:items-start justify-between">
             <div>
-              <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500">
+              <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 <span className="sm:hidden">Jam Pekan</span>
                 <span className="hidden sm:inline">Jam Per Minggu</span>
               </p>
-              <h3 className="text-lg sm:text-3xl font-bold text-slate-900 mt-0.5 sm:mt-2 font-mono tabular-nums">
-                {totalWeeklyHours} <span className="text-xs sm:text-base font-normal text-slate-500">Jam</span>
+              <h3 className="text-lg sm:text-3xl font-bold text-slate-900 dark:text-white mt-0.5 sm:mt-2 font-mono tabular-nums">
+                {totalWeeklyHours} <span className="text-xs sm:text-base font-normal text-slate-500 dark:text-slate-400">Jam</span>
               </h3>
-              <p className="text-xs text-slate-600 mt-1 hidden sm:block">
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 hidden sm:block">
                 Total alokasi jam mengajar & tahfidz
               </p>
             </div>
-            <div className="w-7 h-7 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-700 shrink-0">
+            <div className="w-7 h-7 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-emerald-50 dark:bg-emerald-950/60 flex items-center justify-center text-emerald-700 dark:text-emerald-300 shrink-0">
               <Clock className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
             </div>
           </div>
-          <div className="mt-3 pt-2.5 border-t border-slate-100 hidden sm:grid grid-cols-2 gap-2 text-xs text-slate-500">
+          <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 hidden sm:grid grid-cols-2 gap-2 text-xs text-slate-500 dark:text-slate-400">
             <div>
-              Mengajar: <span className="font-semibold text-slate-800 font-mono">{totalTeachingHours} jam</span>
+              Mengajar: <span className="font-semibold text-slate-800 dark:text-slate-200 font-mono">{totalTeachingHours} jam</span>
             </div>
             <div>
-              Tahfidz: <span className="font-semibold text-slate-800 font-mono">{totalTahfidzHours} jam</span>
+              Tahfidz: <span className="font-semibold text-slate-800 dark:text-slate-200 font-mono">{totalTahfidzHours} jam</span>
             </div>
           </div>
         </div>
 
         {/* 3. Jumlah Guru Tahfidz */}
-        <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-200/80 p-2.5 sm:p-6 shadow-xs">
+        <div className="bg-white dark:bg-slate-900 rounded-xl sm:rounded-2xl border border-slate-200/80 dark:border-slate-800 p-2.5 sm:p-6 shadow-xs">
           <div className="flex items-center sm:items-start justify-between">
             <div>
-              <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500">
+              <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 <span className="sm:hidden">Tahfidz</span>
                 <span className="hidden sm:inline">Jumlah Guru Tahfidz</span>
               </p>
-              <h3 className="text-lg sm:text-3xl font-bold text-slate-900 mt-0.5 sm:mt-2 font-mono tabular-nums">
+              <h3 className="text-lg sm:text-3xl font-bold text-slate-900 dark:text-white mt-0.5 sm:mt-2 font-mono tabular-nums">
                 {tahfidzTeachersCount}
               </h3>
-              <p className="text-xs text-slate-600 mt-1 hidden sm:block">
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 hidden sm:block">
                 Guru pembimbing halaqah tahfidz
               </p>
             </div>
-            <div className="w-7 h-7 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-teal-50 flex items-center justify-center text-teal-700 shrink-0">
+            <div className="w-7 h-7 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-teal-50 dark:bg-teal-950/60 flex items-center justify-center text-teal-700 dark:text-teal-300 shrink-0">
               <Award className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
             </div>
           </div>
-          <div className="mt-3 pt-2.5 border-t border-slate-100 text-xs text-slate-500 hidden sm:flex justify-between">
+          <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 hidden sm:flex justify-between">
             <span>Alokasi Tahfidz Pekanan</span>
-            <span className="font-semibold text-teal-800 font-mono">{totalTahfidzHours} Jam</span>
+            <span className="font-semibold text-teal-800 dark:text-teal-300 font-mono">{totalTahfidzHours} Jam</span>
           </div>
         </div>
       </div>
 
-      {/* Bagian Presensi & Jadwal Sesi Hari Ini Sesuai Permintaan Spesifik:
-          - Dibedakan mana yang presensi mengajar dan mana yang tahfidz (2 bagian)
-          - Jumlah checkbox disesuaikan dengan banyaknya jadwal pada hari tersebut
-          - Menggunakan centang untuk hadir, silang untuk tidak hadir, kosong untuk belum diabsen */}
+      {/* Bagian Presensi & Jadwal Sesi Hari Ini */}
       <div className="space-y-5">
-        {/* Kontrol Utama & Petunjuk Presensi Hari Ini (Disederhanakan menjadi 2: Mengajar & Tahfidz) */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-6 shadow-xs">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+        {/* Kontrol Utama & Petunjuk Presensi Hari Ini */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 sm:p-6 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base sm:text-lg font-bold text-slate-900">
+                <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
                   Presensi & Jadwal Sesi Hari Ini
                 </h2>
                 {isToday ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                     Hari Ini
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
                     Pratinjau
                   </span>
                 )}
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Jadwal sesi hari <strong>{selectedDay}, {formatIndoDate(quickDate)}</strong>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Jadwal sesi hari <strong className="text-slate-700 dark:text-slate-300">{selectedDay}, {formatIndoDate(quickDate)}</strong>
               </p>
             </div>
 
@@ -315,28 +312,28 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
               <div 
                 className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
                   saveStatus === 'saving'
-                    ? 'bg-amber-50 text-amber-800 border-amber-200'
-                    : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                    ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                    : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
                 }`}
                 title="Sistem menyimpan presensi secara otomatis setiap kali Anda mencentang atau mengubah status"
               >
-                <CheckCircle2 className={`w-3.5 h-3.5 ${saveStatus === 'saving' ? 'text-amber-600 animate-spin' : 'text-emerald-600'}`} />
+                <CheckCircle2 className={`w-3.5 h-3.5 ${saveStatus === 'saving' ? 'text-amber-600 animate-spin' : 'text-emerald-600 dark:text-emerald-400'}`} />
                 <span>{saveStatus === 'saving' ? 'Menyimpan...' : 'Tersimpan Otomatis'}</span>
               </div>
 
-              {/* Tombol Simpan Presensi untuk kepastian pengguna */}
+              {/* Tombol Simpan Presensi */}
               <button
                 type="button"
                 onClick={handleManualSave}
-                className="px-3 py-1.5 text-xs font-bold bg-emerald-700 text-white hover:bg-emerald-800 active:scale-95 transition rounded-xl flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                className="px-3 py-1.5 text-xs font-bold bg-emerald-700 hover:bg-emerald-800 dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white active:scale-95 transition rounded-xl flex items-center gap-1.5 cursor-pointer shadow-2xs"
                 title="Simpan & sinkronkan presensi hari ini ke Rekap Bulanan"
               >
                 <Save className="w-3.5 h-3.5" />
                 <span>Simpan Presensi</span>
               </button>
 
-              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200/90 rounded-xl px-2.5 py-1.5 shadow-2xs">
-                <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+              <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 rounded-xl px-2.5 py-1.5 shadow-2xs">
+                <Calendar className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
                 <input
                   type="date"
                   value={quickDate}
@@ -349,7 +346,7 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                     const idx = dt.getDay() === 0 ? 6 : dt.getDay() - 1;
                     setSelectedDay(dayNames[idx]);
                   }}
-                  className="bg-transparent text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer"
+                  className="bg-transparent text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer"
                   title="Pilih tanggal presensi"
                 />
               </div>
@@ -358,7 +355,7 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                 <button
                   type="button"
                   onClick={handleResetToToday}
-                  className="px-3 py-1.5 text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl hover:bg-emerald-100 transition flex items-center gap-1 cursor-pointer shadow-2xs"
+                  className="px-3 py-1.5 text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-xl hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition flex items-center gap-1 cursor-pointer shadow-2xs"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   <span>Hari Ini</span>
@@ -369,14 +366,14 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
 
           {/* Tab Pilihan 2 Bagian Sederhana: Mengajar & Tahfidz */}
           <div className="mt-4">
-            <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-xl sm:rounded-2xl gap-1.5 sm:gap-2 border border-slate-200/80">
+            <div className="grid grid-cols-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl sm:rounded-2xl gap-1.5 sm:gap-2 border border-slate-200/80 dark:border-slate-700">
               <button
                 type="button"
                 onClick={() => setSectionFilter('mengajar')}
                 className={`flex items-center justify-center gap-2 py-2.5 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl font-bold text-xs sm:text-base transition-all cursor-pointer ${
                   sectionFilter === 'mengajar'
-                    ? 'bg-blue-700 text-white shadow-sm shadow-blue-900/25 ring-1 ring-blue-800/20'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
+                    ? 'bg-blue-700 dark:bg-blue-600 text-white shadow-sm shadow-blue-900/25 ring-1 ring-blue-800/20'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/70 dark:hover:bg-slate-700/60'
                 }`}
               >
                 <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
@@ -413,10 +410,10 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
           </div>
 
           {/* Legend Checkbox & Tombol Aksi Cepat Kontekstual */}
-          <div className="mt-4 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/80 p-3 sm:p-3.5 rounded-xl border border-slate-200/80 text-xs">
+          <div className="mt-4 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/80 dark:bg-slate-800/60 p-3 sm:p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700 text-xs">
             {/* Legend petunjuk status checkbox */}
-            <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-slate-700">
-              <span className="font-semibold text-slate-900">Petunjuk Absen:</span>
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-slate-700 dark:text-slate-300">
+              <span className="font-semibold text-slate-900 dark:text-white">Petunjuk Absen:</span>
               <div className="flex items-center gap-1.5">
                 <span className="w-5 h-5 rounded-md bg-emerald-600 text-white flex items-center justify-center font-bold">
                   <Check className="w-3.5 h-3.5 stroke-[3]" />
@@ -430,7 +427,7 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                 <span>Silang = Tidak Hadir</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-5 h-5 rounded-md bg-white border-2 border-slate-300 flex items-center justify-center"></span>
+                <span className="w-5 h-5 rounded-md bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 flex items-center justify-center"></span>
                 <span>Kosong = Belum Diabsen</span>
               </div>
             </div>
@@ -440,7 +437,7 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
               <button
                 type="button"
                 onClick={handleMarkAllHadir}
-                className="px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 transition cursor-pointer shadow-xs flex items-center gap-1.5"
+                className="px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-700 hover:bg-emerald-800 dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white transition cursor-pointer shadow-xs flex items-center gap-1.5"
                 title="Tandai semua guru hadir baik mengajar maupun tahfidz pada hari ini"
               >
                 <Check className="w-3.5 h-3.5 stroke-[3]" />
@@ -452,14 +449,14 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                   <button
                     type="button"
                     onClick={() => handleMarkSectionHadir('mengajar')}
-                    className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-700 text-white hover:bg-blue-800 transition cursor-pointer shadow-xs"
+                    className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-700 hover:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-700 text-white transition cursor-pointer shadow-xs"
                   >
                     Centang Semua Mengajar
                   </button>
                   <button
                     type="button"
                     onClick={() => handleResetSection('mengajar')}
-                    className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer"
                   >
                     Kosongkan Mengajar
                   </button>
@@ -469,14 +466,14 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                   <button
                     type="button"
                     onClick={() => handleMarkSectionHadir('tahfidz')}
-                    className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-teal-700 text-white hover:bg-teal-800 transition cursor-pointer shadow-xs"
+                    className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white transition cursor-pointer shadow-xs"
                   >
                     Centang Semua Tahfidz
                   </button>
                   <button
                     type="button"
                     onClick={() => handleResetSection('tahfidz')}
-                    className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer"
                   >
                     Kosongkan Tahfidz
                   </button>
@@ -487,13 +484,13 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
 
           {/* Indikator Status Hari Libur Umum jika ada */}
           {holidayCheckGeneral.isHoliday && (
-            <div className="mt-3 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between gap-2">
+            <div className="mt-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+                <AlertCircle className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0" />
                 <span>
                   Hari {selectedDay} ({formatIndoDate(quickDate)}) ada agenda libur: <strong>{holidayCheckGeneral.holiday?.title}</strong> ({holidayCheckGeneral.holiday?.scope}).
                   {holidayCheckGeneral.sessions && holidayCheckGeneral.sessions.length < 3 && (
-                    <span className="ml-1 text-slate-700 font-medium">
+                    <span className="ml-1 text-slate-700 dark:text-slate-300 font-medium">
                       Sesi yang tidak diliburkan tetap berjalan seperti biasa.
                     </span>
                   )}
@@ -509,35 +506,35 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
           {/* BAGIAN 1: PRESENSI MENGAJAR HARI INI                         */}
           {/* ============================================================ */}
           {sectionFilter === 'mengajar' && (
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden">
               {/* Tabel Presensi Mengajar */}
               {holidayCheckMengajar.isHoliday ? (
                 <div className="py-12 px-4 text-center">
-                  <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-700 flex items-center justify-center mx-auto mb-3 border border-blue-200 shadow-2xs">
+                  <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 flex items-center justify-center mx-auto mb-3 border border-blue-200 dark:border-blue-800 shadow-2xs">
                     <CalendarOff className="w-6 h-6" />
                   </div>
-                  <h3 className="text-base font-bold text-slate-900">
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
                     Hari Ini Libur Mengajar: {holidayCheckMengajar.holiday?.title || 'Agenda Libur'}
                   </h3>
-                  <p className="text-xs text-slate-600 mt-1 max-w-md mx-auto">
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 max-w-md mx-auto">
                     Jadwal presensi mengajar otomatis tidak ditampilkan karena tercatat pada menu Hari Libur.
                   </p>
                   {holidayCheckMengajar.holiday?.description && (
-                    <p className="text-xs text-slate-400 mt-1.5 italic">
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5 italic">
                       "{holidayCheckMengajar.holiday.description}"
                     </p>
                   )}
                 </div>
               ) : teachingTeachersToday.length === 0 ? (
-                <div className="py-10 text-center text-xs text-slate-500">
-                  <AlertCircle className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                  <p className="font-semibold text-slate-700">Tidak ada jadwal jam mengajar pada hari {selectedDay}</p>
-                  <p className="mt-1 text-slate-400">Hari ini tidak ada jam mengajar terjadwal.</p>
+                <div className="py-10 text-center text-xs text-slate-500 dark:text-slate-400">
+                  <AlertCircle className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                  <p className="font-semibold text-slate-700 dark:text-slate-300">Tidak ada jadwal jam mengajar pada hari {selectedDay}</p>
+                  <p className="mt-1 text-slate-400 dark:text-slate-500">Hari ini tidak ada jam mengajar terjadwal.</p>
                 </div>
               ) : (
                 <>
                   {/* TAMPILAN KHUSUS MOBILE APP (sm:hidden) - Desain Simpel, Kompak & Cepat */}
-                  <div className="divide-y divide-slate-100 sm:hidden">
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800 sm:hidden">
                     {teachingTeachersToday.map((sch, index) => {
                       const hours = storage.getEffectiveTeacherHoursOnDate(sch, quickDate, selectedDay);
                       const record = dailyAttendance.find(a => a.teacherId === sch.teacherId);
@@ -546,30 +543,30 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                       const isAllHadir = actualMengajar === targetMengajar && targetMengajar > 0;
 
                       return (
-                        <div key={sch.id} className="p-3 space-y-2 bg-white">
+                        <div key={sch.id} className="p-3 space-y-2 bg-white dark:bg-slate-900">
                           {/* Info Guru & Status Realisasi */}
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2 min-w-0">
-                              <span className="w-5 h-5 rounded-full bg-blue-50 text-blue-700 font-mono text-[10px] font-bold flex items-center justify-center shrink-0">
+                              <span className="w-5 h-5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-mono text-[10px] font-bold flex items-center justify-center shrink-0">
                                 {index + 1}
                               </span>
-                              <span className="font-semibold text-slate-900 text-xs truncate">
+                              <span className="font-semibold text-slate-900 dark:text-slate-100 text-xs truncate">
                                 {sch.teacherName}
                               </span>
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0">
-                              <span className="bg-blue-50 text-blue-800 text-[11px] font-bold px-2 py-0.5 rounded-md border border-blue-200/80">
+                              <span className="bg-blue-50 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 text-[11px] font-bold px-2 py-0.5 rounded-md border border-blue-200/80 dark:border-blue-800/80">
                                 {targetMengajar} Jam
                               </span>
                               <span
                                 className={`px-2 py-0.5 rounded-md text-[11px] font-bold font-mono ${
                                   isAllHadir
-                                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                    ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
                                     : actualMengajar > 0
-                                    ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                                    ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
                                     : record?.status === 'tidak_hadir'
-                                    ? 'bg-rose-50 text-rose-800 border border-rose-200'
-                                    : 'bg-slate-100 text-slate-600'
+                                    ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
                                 }`}
                               >
                                 {actualMengajar}/{targetMengajar} Hadir
@@ -585,8 +582,8 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                               onClick={() => handleSetTeacherSlots(sch.teacherId, 'mengajar', isAllHadir ? 'belum_absen' : 'hadir')}
                               className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition active:scale-95 cursor-pointer shrink-0 ${
                                 isAllHadir
-                                  ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
-                                  : 'bg-blue-700 text-white hover:bg-blue-800 shadow-2xs'
+                                  ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-200'
+                                  : 'bg-blue-700 hover:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-700 text-white shadow-2xs'
                               }`}
                             >
                               <Check className="w-3.5 h-3.5 stroke-[3]" />
@@ -598,7 +595,7 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                               type="button"
                               onClick={() => handleSetTeacherSlots(sch.teacherId, 'mengajar', 'tidak_hadir')}
                               title="Set Tidak Hadir"
-                              className="p-1.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 transition active:scale-95 cursor-pointer shrink-0"
+                              className="p-1.5 rounded-lg border border-rose-200 dark:border-rose-800/80 bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/50 transition active:scale-95 cursor-pointer shrink-0"
                             >
                               <X className="w-3.5 h-3.5 stroke-[3]" />
                             </button>
@@ -618,13 +615,13 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                                         ? 'bg-emerald-600 border-emerald-600 text-white'
                                         : slotStatus === 'tidak_hadir'
                                         ? 'bg-rose-600 border-rose-600 text-white'
-                                        : 'bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100'
+                                        : 'bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                                     }`}
                                   >
                                     {slotStatus === 'hadir' && <Check className="w-3.5 h-3.5 stroke-[3]" />}
                                     {slotStatus === 'tidak_hadir' && <X className="w-3.5 h-3.5 stroke-[3]" />}
                                     {slotStatus === 'belum_absen' && (
-                                      <span className="w-2.5 h-2.5 rounded-xs border border-slate-400 block bg-white"></span>
+                                      <span className="w-2.5 h-2.5 rounded-xs border border-slate-400 dark:border-slate-500 block bg-white dark:bg-slate-900"></span>
                                     )}
                                     <span className="font-mono text-[11px]">J{slotIdx + 1}</span>
                                   </button>
@@ -641,7 +638,7 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                   <div className="hidden sm:block overflow-x-auto no-scrollbar">
                     <table className="w-full text-left border-collapse text-xs sm:text-sm">
                       <thead>
-                        <tr className="border-b border-slate-200 text-slate-600 font-semibold bg-slate-50/70">
+                        <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-semibold bg-slate-50/70 dark:bg-slate-800/80">
                           <th className="py-3 px-3.5 w-12 text-center">No</th>
                           <th className="py-3 px-3.5">Nama Guru</th>
                           <th className="py-3 px-3 text-center w-28 whitespace-nowrap">Jadwal Hari Ini</th>
@@ -649,7 +646,7 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                           <th className="py-3 px-3.5 text-center w-28 whitespace-nowrap">Realisasi</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100">
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                         {teachingTeachersToday.map((sch, index) => {
                           const hours = storage.getEffectiveTeacherHoursOnDate(sch, quickDate, selectedDay);
                           const record = dailyAttendance.find(a => a.teacherId === sch.teacherId);
@@ -657,20 +654,20 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                           const targetMengajar = hours.mengajar;
 
                           return (
-                            <tr key={sch.id} className="hover:bg-slate-50/80 transition-colors">
+                            <tr key={sch.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
                               {/* No */}
-                              <td className="py-3 px-3.5 text-center font-mono text-slate-400 tabular-nums">
+                              <td className="py-3 px-3.5 text-center font-mono text-slate-400 dark:text-slate-500 tabular-nums">
                                 {index + 1}
                               </td>
 
                               {/* Nama Guru */}
-                              <td className="py-3 px-3.5 font-medium text-slate-900 whitespace-nowrap">
+                              <td className="py-3 px-3.5 font-medium text-slate-900 dark:text-slate-100 whitespace-nowrap">
                                 {sch.teacherName}
                               </td>
 
                               {/* Alokasi Jam Mengajar */}
-                              <td className="py-3 px-3 text-center whitespace-nowrap font-mono font-bold text-blue-900">
-                                <span className="bg-blue-50 text-blue-800 px-2.5 py-1 rounded-lg border border-blue-200/80">
+                              <td className="py-3 px-3 text-center whitespace-nowrap font-mono font-bold text-blue-900 dark:text-blue-300">
+                                <span className="bg-blue-50 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 px-2.5 py-1 rounded-lg border border-blue-200/80 dark:border-blue-800/80">
                                   {targetMengajar} Jam
                                 </span>
                               </td>
@@ -683,8 +680,8 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                                     onClick={() => handleSetTeacherSlots(sch.teacherId, 'mengajar', actualMengajar === targetMengajar && targetMengajar > 0 ? 'belum_absen' : 'hadir')}
                                     className={`h-9 px-2.5 rounded-xl border flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer text-xs font-semibold shrink-0 ${
                                       actualMengajar === targetMengajar && targetMengajar > 0
-                                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200'
-                                        : 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100'
+                                        ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-200'
+                                        : 'bg-blue-50 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800 hover:bg-blue-100'
                                     }`}
                                     title={actualMengajar === targetMengajar && targetMengajar > 0 ? 'Klik untuk reset' : 'Klik untuk hadirkan semua jam'}
                                   >
@@ -704,13 +701,13 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                                             ? 'bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700'
                                             : slotStatus === 'tidak_hadir'
                                             ? 'bg-rose-600 border-rose-600 text-white hover:bg-rose-700'
-                                            : 'bg-white border-slate-300 text-slate-600 hover:border-slate-400 hover:bg-slate-50'
+                                            : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-slate-400 dark:hover:border-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'
                                         }`}
                                       >
                                         {slotStatus === 'hadir' && <Check className="w-4 h-4 stroke-[3]" />}
                                         {slotStatus === 'tidak_hadir' && <X className="w-4 h-4 stroke-[3]" />}
                                         {slotStatus === 'belum_absen' && (
-                                          <span className="w-3.5 h-3.5 rounded-xs border-2 border-slate-300 block bg-slate-50"></span>
+                                          <span className="w-3.5 h-3.5 rounded-xs border-2 border-slate-300 dark:border-slate-500 block bg-slate-50 dark:bg-slate-900"></span>
                                         )}
                                         <span className="font-mono text-[11px]">Jam {slotIdx + 1}</span>
                                       </button>
@@ -724,12 +721,12 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                                 <span
                                   className={`inline-block px-2.5 py-1 rounded-lg text-xs font-bold font-mono ${
                                     actualMengajar === targetMengajar && targetMengajar > 0
-                                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                      ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
                                       : actualMengajar > 0
-                                      ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                                      ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
                                       : record?.status === 'tidak_hadir'
-                                      ? 'bg-rose-50 text-rose-800 border border-rose-200'
-                                      : 'bg-slate-100 text-slate-600'
+                                      ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
                                   }`}
                                 >
                                   {actualMengajar}/{targetMengajar} Hadir
@@ -743,18 +740,18 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                   </div>
 
                   {/* Footer Penjamin & Tombol Simpan Presensi Mengajar */}
-                  <div className="p-3.5 sm:p-4 bg-slate-50/90 border-t border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-2 text-slate-600">
+                  <div className="p-3.5 sm:p-4 bg-slate-50/90 dark:bg-slate-800/70 border-t border-slate-200/80 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
                       <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 animate-pulse"></span>
                       <span>
-                        Status: <strong className="text-emerald-800">Tersimpan Otomatis</strong>. Setiap centang kehadiran langsung masuk ke Rekap Bulanan.
+                        Status: <strong className="text-emerald-800 dark:text-emerald-300">Tersimpan Otomatis</strong>. Setiap centang kehadiran langsung masuk ke Rekap Bulanan.
                       </span>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <button
                         type="button"
                         onClick={handleManualSave}
-                        className="px-3.5 py-2 text-xs font-bold rounded-xl bg-emerald-700 text-white hover:bg-emerald-800 active:scale-95 transition cursor-pointer shadow-xs flex items-center gap-1.5"
+                        className="px-3.5 py-2 text-xs font-bold rounded-xl bg-emerald-700 hover:bg-emerald-800 dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white active:scale-95 transition cursor-pointer shadow-xs flex items-center gap-1.5"
                         title="Simpan & pastikan presensi mengajar tersinkron"
                       >
                         <Save className="w-3.5 h-3.5" />
@@ -762,8 +759,8 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                       </button>
                       <button
                         type="button"
-                        onClick={() => onNavigateTab('rekap')}
-                        className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 transition cursor-pointer shadow-2xs"
+                        onClick={() => onNavigateTab('rekap-bulanan')}
+                        className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer shadow-2xs"
                       >
                         Buka Rekap Bulanan →
                       </button>
@@ -778,18 +775,18 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
           {/* BAGIAN 2: PRESENSI TAHFIDZ HARI INI                          */}
           {/* ============================================================ */}
           {sectionFilter === 'tahfidz' && (
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden">
               {/* Status Libur Tahfidz Khusus jika ada */}
               {holidayCheckTahfidz.isHoliday && holidayCheckTahfidz.isTahfidzPartial && (
-                <div className="m-4 p-3.5 rounded-xl bg-teal-50 border border-teal-200 text-teal-950 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="m-4 p-3.5 rounded-xl bg-teal-50 dark:bg-teal-950/50 border border-teal-200 dark:border-teal-800 text-teal-950 dark:text-teal-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-teal-700 shrink-0" />
+                    <Sparkles className="w-4 h-4 text-teal-700 dark:text-teal-400 shrink-0" />
                     <span>
                       <strong>Penyesuaian Hari Libur:</strong> {holidayCheckTahfidz.isTahfidzSoreHoliday ? 'Tahfidz Sore hari ini diliburkan' : 'Tahfidz Pagi hari ini diliburkan'} ({holidayCheckTahfidz.holiday?.title || 'Agenda Libur'}). 
                       Alokasi presensi tahfidz hari ini dikurangi menjadi hanya <strong>1 Jam ({holidayCheckTahfidz.isTahfidzSoreHoliday ? 'Sesi Pagi Saja' : 'Sesi Sore Saja'})</strong>.
                     </span>
                   </div>
-                  <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-teal-200/80 text-teal-900 border border-teal-300 self-start sm:self-auto shrink-0">
+                  <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-teal-200/80 dark:bg-teal-900/80 text-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-700 self-start sm:self-auto shrink-0">
                     {holidayCheckTahfidz.isTahfidzSoreHoliday ? 'Hanya Sesi Pagi' : 'Hanya Sesi Sore'}
                   </span>
                 </div>
@@ -798,31 +795,31 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
               {/* Tabel Presensi Tahfidz */}
               {holidayCheckTahfidz.isHoliday && !holidayCheckTahfidz.isTahfidzPartial ? (
                 <div className="py-12 px-4 text-center">
-                  <div className="w-12 h-12 rounded-2xl bg-teal-50 text-teal-700 flex items-center justify-center mx-auto mb-3 border border-teal-200 shadow-2xs">
+                  <div className="w-12 h-12 rounded-2xl bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 flex items-center justify-center mx-auto mb-3 border border-teal-200 dark:border-teal-800 shadow-2xs">
                     <CalendarOff className="w-6 h-6" />
                   </div>
-                  <h3 className="text-base font-bold text-slate-900">
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
                     Hari Ini Libur Tahfidz: {holidayCheckTahfidz.holiday?.title || 'Agenda Libur'}
                   </h3>
-                  <p className="text-xs text-slate-600 mt-1 max-w-md mx-auto">
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 max-w-md mx-auto">
                     Jadwal presensi tahfidz otomatis tidak ditampilkan karena tercatat pada menu Hari Libur.
                   </p>
                   {holidayCheckTahfidz.holiday?.description && (
-                    <p className="text-xs text-slate-400 mt-1.5 italic">
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5 italic">
                       "{holidayCheckTahfidz.holiday.description}"
                     </p>
                   )}
                 </div>
               ) : tahfidzTeachersToday.length === 0 ? (
-                <div className="py-10 text-center text-xs text-slate-500">
-                  <AlertCircle className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                  <p className="font-semibold text-slate-700">Tidak ada jadwal jam tahfidz pada hari {selectedDay}</p>
-                  <p className="mt-1 text-slate-400">Hari ini tidak ada jam tahfidz terjadwal.</p>
+                <div className="py-10 text-center text-xs text-slate-500 dark:text-slate-400">
+                  <AlertCircle className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                  <p className="font-semibold text-slate-700 dark:text-slate-300">Tidak ada jadwal jam tahfidz pada hari {selectedDay}</p>
+                  <p className="mt-1 text-slate-400 dark:text-slate-500">Hari ini tidak ada jam tahfidz terjadwal.</p>
                 </div>
               ) : (
                 <>
-                  {/* TAMPILAN KHUSUS MOBILE APP (sm:hidden) - Desain Simpel, Kompak & Cepat */}
-                  <div className="divide-y divide-slate-100 sm:hidden">
+                  {/* TAMPILAN KHUSUS MOBILE APP (sm:hidden) */}
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800 sm:hidden">
                     {tahfidzTeachersToday.map((sch, index) => {
                       const hours = storage.getEffectiveTeacherHoursOnDate(sch, quickDate, selectedDay);
                       const record = dailyAttendance.find(a => a.teacherId === sch.teacherId);
@@ -831,30 +828,30 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                       const isAllHadir = actualTahfidz === targetTahfidz && targetTahfidz > 0;
 
                       return (
-                        <div key={sch.id} className="p-3 space-y-2 bg-white">
+                        <div key={sch.id} className="p-3 space-y-2 bg-white dark:bg-slate-900">
                           {/* Info Guru & Status Realisasi */}
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2 min-w-0">
-                              <span className="w-5 h-5 rounded-full bg-teal-50 text-teal-700 font-mono text-[10px] font-bold flex items-center justify-center shrink-0">
+                              <span className="w-5 h-5 rounded-full bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 font-mono text-[10px] font-bold flex items-center justify-center shrink-0">
                                 {index + 1}
                               </span>
-                              <span className="font-semibold text-slate-900 text-xs truncate">
+                              <span className="font-semibold text-slate-900 dark:text-slate-100 text-xs truncate">
                                 {sch.teacherName}
                               </span>
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0">
-                              <span className="bg-teal-50 text-teal-800 text-[11px] font-bold px-2 py-0.5 rounded-md border border-teal-200/80">
+                              <span className="bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 text-[11px] font-bold px-2 py-0.5 rounded-md border border-teal-200/80 dark:border-teal-800/80">
                                 {targetTahfidz} Jam {holidayCheckTahfidz.isTahfidzPartial ? (holidayCheckTahfidz.isTahfidzSoreHoliday ? '(Pagi)' : '(Sore)') : ''}
                               </span>
                               <span
                                 className={`px-2 py-0.5 rounded-md text-[11px] font-bold font-mono ${
                                   isAllHadir
-                                    ? 'bg-teal-50 text-teal-800 border border-teal-200'
+                                    ? 'bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800'
                                     : actualTahfidz > 0
-                                    ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                                    ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
                                     : record?.status === 'tidak_hadir'
-                                    ? 'bg-rose-50 text-rose-800 border border-rose-200'
-                                    : 'bg-slate-100 text-slate-600'
+                                    ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
                                 }`}
                               >
                                 {actualTahfidz}/{targetTahfidz} Hadir
@@ -870,8 +867,8 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                               onClick={() => handleSetTeacherSlots(sch.teacherId, 'tahfidz', isAllHadir ? 'belum_absen' : 'hadir')}
                               className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition active:scale-95 cursor-pointer shrink-0 ${
                                 isAllHadir
-                                  ? 'bg-teal-100 text-teal-800 hover:bg-teal-200'
-                                  : 'bg-teal-700 text-white hover:bg-teal-800 shadow-2xs'
+                                  ? 'bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-200 hover:bg-teal-200'
+                                  : 'bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white shadow-2xs'
                               }`}
                             >
                               <Check className="w-3.5 h-3.5 stroke-[3]" />
@@ -883,7 +880,7 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                               type="button"
                               onClick={() => handleSetTeacherSlots(sch.teacherId, 'tahfidz', 'tidak_hadir')}
                               title="Set Tidak Hadir"
-                              className="p-1.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 transition active:scale-95 cursor-pointer shrink-0"
+                              className="p-1.5 rounded-lg border border-rose-200 dark:border-rose-800/80 bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/50 transition active:scale-95 cursor-pointer shrink-0"
                             >
                               <X className="w-3.5 h-3.5 stroke-[3]" />
                             </button>
@@ -906,13 +903,13 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                                         ? 'bg-teal-600 border-teal-600 text-white'
                                         : slotStatus === 'tidak_hadir'
                                         ? 'bg-rose-600 border-rose-600 text-white'
-                                        : 'bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100'
+                                        : 'bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                                     }`}
                                   >
                                     {slotStatus === 'hadir' && <Check className="w-3.5 h-3.5 stroke-[3]" />}
                                     {slotStatus === 'tidak_hadir' && <X className="w-3.5 h-3.5 stroke-[3]" />}
                                     {slotStatus === 'belum_absen' && (
-                                      <span className="w-2.5 h-2.5 rounded-xs border border-slate-400 block bg-white"></span>
+                                      <span className="w-2.5 h-2.5 rounded-xs border border-slate-400 dark:border-slate-500 block bg-white dark:bg-slate-900"></span>
                                     )}
                                     <span className="font-mono text-[11px]">{shortLabel}</span>
                                   </button>
@@ -929,7 +926,7 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                   <div className="hidden sm:block overflow-x-auto no-scrollbar">
                     <table className="w-full text-left border-collapse text-xs sm:text-sm">
                       <thead>
-                        <tr className="border-b border-slate-200 text-slate-600 font-semibold bg-slate-50/70">
+                        <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-semibold bg-slate-50/70 dark:bg-slate-800/80">
                           <th className="py-3 px-3.5 w-12 text-center">No</th>
                           <th className="py-3 px-3.5">Nama Guru</th>
                           <th className="py-3 px-3 text-center w-28 whitespace-nowrap">Jadwal Hari Ini</th>
@@ -937,7 +934,7 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                           <th className="py-3 px-3.5 text-center w-28 whitespace-nowrap">Realisasi</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100">
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                         {tahfidzTeachersToday.map((sch, index) => {
                           const hours = storage.getEffectiveTeacherHoursOnDate(sch, quickDate, selectedDay);
                           const record = dailyAttendance.find(a => a.teacherId === sch.teacherId);
@@ -945,23 +942,23 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                           const targetTahfidz = hours.tahfidz;
 
                           return (
-                            <tr key={sch.id} className="hover:bg-slate-50/80 transition-colors">
+                            <tr key={sch.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
                               {/* No */}
-                              <td className="py-3 px-3.5 text-center font-mono text-slate-400 tabular-nums">
+                              <td className="py-3 px-3.5 text-center font-mono text-slate-400 dark:text-slate-500 tabular-nums">
                                 {index + 1}
                               </td>
 
                               {/* Nama Guru */}
-                              <td className="py-3 px-3.5 font-medium text-slate-900 whitespace-nowrap">
+                              <td className="py-3 px-3.5 font-medium text-slate-900 dark:text-slate-100 whitespace-nowrap">
                                 {sch.teacherName}
                               </td>
 
                               {/* Alokasi Jam Tahfidz */}
-                              <td className="py-3 px-3 text-center whitespace-nowrap font-mono font-bold text-teal-900">
-                                <span className="bg-teal-50 text-teal-800 px-2.5 py-1 rounded-lg border border-teal-200/80">
+                              <td className="py-3 px-3 text-center whitespace-nowrap font-mono font-bold text-teal-900 dark:text-teal-300">
+                                <span className="bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 px-2.5 py-1 rounded-lg border border-teal-200/80 dark:border-teal-800/80">
                                   {targetTahfidz} Jam
                                   {holidayCheckTahfidz.isTahfidzPartial && (
-                                    <span className="block text-[10px] text-teal-600 font-normal">
+                                    <span className="block text-[10px] text-teal-600 dark:text-teal-400 font-normal">
                                       ({holidayCheckTahfidz.isTahfidzSoreHoliday ? 'Sesi Pagi Saja' : 'Sesi Sore Saja'})
                                     </span>
                                   )}
@@ -976,8 +973,8 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                                     onClick={() => handleSetTeacherSlots(sch.teacherId, 'tahfidz', actualTahfidz === targetTahfidz && targetTahfidz > 0 ? 'belum_absen' : 'hadir')}
                                     className={`h-9 px-2.5 rounded-xl border flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer text-xs font-semibold shrink-0 ${
                                       actualTahfidz === targetTahfidz && targetTahfidz > 0
-                                        ? 'bg-teal-100 text-teal-800 border-teal-300 hover:bg-teal-200'
-                                        : 'bg-teal-50 text-teal-800 border-teal-200 hover:bg-teal-100'
+                                        ? 'bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-200 border-teal-300 dark:border-teal-700 hover:bg-teal-200'
+                                        : 'bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 border-teal-200 dark:border-teal-800 hover:bg-teal-100'
                                     }`}
                                     title={actualTahfidz === targetTahfidz && targetTahfidz > 0 ? 'Klik untuk reset' : 'Klik untuk hadirkan semua jam'}
                                   >
@@ -999,13 +996,13 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                                             ? 'bg-teal-600 border-teal-600 text-white hover:bg-teal-700'
                                             : slotStatus === 'tidak_hadir'
                                             ? 'bg-rose-600 border-rose-600 text-white hover:bg-rose-700'
-                                            : 'bg-white border-slate-300 text-slate-600 hover:border-slate-400 hover:bg-slate-50'
+                                            : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-slate-400 dark:hover:border-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'
                                         }`}
                                       >
                                         {slotStatus === 'hadir' && <Check className="w-4 h-4 stroke-[3]" />}
                                         {slotStatus === 'tidak_hadir' && <X className="w-4 h-4 stroke-[3]" />}
                                         {slotStatus === 'belum_absen' && (
-                                          <span className="w-3.5 h-3.5 rounded-xs border-2 border-slate-300 block bg-slate-50"></span>
+                                          <span className="w-3.5 h-3.5 rounded-xs border-2 border-slate-300 dark:border-slate-500 block bg-slate-50 dark:bg-slate-900"></span>
                                         )}
                                         <span className="font-mono text-[11px]">{slotLabel}</span>
                                       </button>
@@ -1019,12 +1016,12 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                                 <span
                                   className={`inline-block px-2.5 py-1 rounded-lg text-xs font-bold font-mono ${
                                     actualTahfidz === targetTahfidz && targetTahfidz > 0
-                                      ? 'bg-teal-50 text-teal-800 border border-teal-200'
+                                      ? 'bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800'
                                       : actualTahfidz > 0
-                                      ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                                      ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
                                       : record?.status === 'tidak_hadir'
-                                      ? 'bg-rose-50 text-rose-800 border border-rose-200'
-                                      : 'bg-slate-100 text-slate-600'
+                                      ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
                                   }`}
                                 >
                                   {actualTahfidz}/{targetTahfidz} Hadir
@@ -1038,18 +1035,18 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                   </div>
 
                   {/* Footer Penjamin & Tombol Simpan Presensi Tahfidz */}
-                  <div className="p-3.5 sm:p-4 bg-slate-50/90 border-t border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-2 text-slate-600">
+                  <div className="p-3.5 sm:p-4 bg-slate-50/90 dark:bg-slate-800/70 border-t border-slate-200/80 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
                       <span className="w-2 h-2 rounded-full bg-teal-500 shrink-0 animate-pulse"></span>
                       <span>
-                        Status: <strong className="text-teal-800">Tersimpan Otomatis</strong>. Setiap centang halaqah tahfidz langsung masuk ke Rekap Bulanan.
+                        Status: <strong className="text-teal-800 dark:text-teal-300">Tersimpan Otomatis</strong>. Setiap centang halaqah tahfidz langsung masuk ke Rekap Bulanan.
                       </span>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <button
                         type="button"
                         onClick={handleManualSave}
-                        className="px-3.5 py-2 text-xs font-bold rounded-xl bg-teal-700 text-white hover:bg-teal-800 active:scale-95 transition cursor-pointer shadow-xs flex items-center gap-1.5"
+                        className="px-3.5 py-2 text-xs font-bold rounded-xl bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white active:scale-95 transition cursor-pointer shadow-xs flex items-center gap-1.5"
                         title="Simpan & pastikan presensi tahfidz tersinkron"
                       >
                         <Save className="w-3.5 h-3.5" />
@@ -1057,8 +1054,8 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                       </button>
                       <button
                         type="button"
-                        onClick={() => onNavigateTab('rekap')}
-                        className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 transition cursor-pointer shadow-2xs"
+                        onClick={() => onNavigateTab('rekap-bulanan')}
+                        className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer shadow-2xs"
                       >
                         Buka Rekap Bulanan →
                       </button>
@@ -1073,7 +1070,7 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
 
       {/* Toast Notifikasi Feedback Simpan */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-xl border border-slate-700 text-xs sm:text-sm animate-in fade-in slide-in-from-bottom-3 duration-200 max-w-md">
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-slate-900 dark:bg-slate-800 text-white px-4 py-3 rounded-2xl shadow-xl border border-slate-700 dark:border-slate-600 text-xs sm:text-sm animate-in fade-in slide-in-from-bottom-3 duration-200 max-w-md">
           <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
           <span className="font-medium">{toastMessage}</span>
         </div>
