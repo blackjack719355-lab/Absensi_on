@@ -577,6 +577,9 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
                   <p className="text-emerald-800/90 dark:text-emerald-300/90 mt-1 leading-relaxed">
                     Tabel <code>teachers</code>, <code>schedules</code>, <code>holidays</code>, dan <code>attendances</code> telah otomatis dibuat oleh server saat terhubung. Skrip di bawah ini disediakan sebagai referensi struktur tabel PostgreSQL.
                   </p>
+                  <p className="text-emerald-700 dark:text-emerald-400 mt-1.5 font-medium">
+                    💡 <em>Catatan:</em> Jika Anda menjalankan skrip ini di SQL Editor Supabase dan muncul pesan <strong>"Success. No rows returned."</strong>, artinya perintah <strong>100% BERHASIL</strong> karena skrip ini membuat struktur tabel (DDL), bukan mengambil baris data.
+                  </p>
                 </div>
               </div>
 
@@ -643,6 +646,25 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
                     <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs">Koneksi Terenkripsi (SSL)</h4>
                     <p className="text-slate-600 dark:text-slate-400 text-xs mt-1">
                       Koneksi menggunakan SSL terenkripsi antar-server untuk memastikan keamanan data absensi santri dan guru.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Panduan Khusus Deploy Vercel */}
+                <div className="p-3.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 rounded-xl flex items-start gap-3">
+                  <span className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                    i
+                  </span>
+                  <div>
+                    <h4 className="font-bold text-blue-950 dark:text-blue-100 text-xs">Panduan Pengaturan di Vercel</h4>
+                    <p className="text-blue-900/90 dark:text-blue-200/90 text-xs mt-1 leading-relaxed">
+                      Saat deploy ke <strong>Vercel</strong>, tambahkan <strong>Environment Variable</strong> di Vercel Dashboard (Settings → Environment Variables):
+                    </p>
+                    <div className="mt-2 bg-blue-100/70 dark:bg-blue-900/50 p-2 rounded-lg font-mono text-[11px] text-blue-950 dark:text-blue-200 select-all break-all">
+                      DATABASE_URL=postgresql://postgres.ugvxowesvhqjinmqdcje:Sehat719355%24@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres
+                    </div>
+                    <p className="text-[11px] text-blue-800 dark:text-blue-300 mt-1.5">
+                      Gunakan host IPv4 pooler (<code>aws-0-ap-southeast-1.pooler.supabase.com</code>) dan ubah simbol <code>$</code> pada password menjadi <code>%24</code> agar koneksi serverless di Vercel berjalan stabil.
                     </p>
                   </div>
                 </div>

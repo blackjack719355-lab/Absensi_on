@@ -388,6 +388,11 @@ class StorageRepository {
           return;
         }
 
+        if (statusData && statusData.isConnecting && !statusData.connected && attempt < retries) {
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+          continue;
+        }
+
         this.supabaseConfig = {
           connectionString: this.supabaseConfig.connectionString && !this.supabaseConfig.connectionString.includes('•••') ? this.supabaseConfig.connectionString : '',
           connectionStringMasked: statusData.connectionStringMasked || this.supabaseConfig.connectionStringMasked,

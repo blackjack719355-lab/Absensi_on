@@ -13,6 +13,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const CONFIG_FILE = path.resolve(__dirname, '.supabase-runtime.json');
+const TMP_CONFIG_FILE = path.resolve('/tmp', '.supabase-runtime.json');
 
 // Safely normalize PostgreSQL URI so special characters like $ in password do not break URL parsing
 export function safeNormalizePgUrl(uri: string): string {
@@ -158,9 +159,13 @@ function maskConnectionString(str: string): string {
 }
 
 function loadRuntimeConfig(): SupabaseRuntimeConfig {
-  if (fs.existsSync(CONFIG_FILE)) {
+  const fileToRead = fs.existsSync(TMP_CONFIG_FILE)
+    ? TMP_CONFIG_FILE
+    : (fs.existsSync(CONFIG_FILE) ? CONFIG_FILE : null);
+
+  if (fileToRead) {
     try {
-      const data = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
+      const data = JSON.parse(fs.readFileSync(fileToRead, 'utf-8'));
       if (data.connectionString && !data.connectionString.includes('••••')) {
         return {
           ...data,
@@ -168,7 +173,7 @@ function loadRuntimeConfig(): SupabaseRuntimeConfig {
         };
       }
     } catch (e) {
-      console.warn('Gagal membaca .supabase-runtime.json:', e);
+      console.warn('Gagal membaca runtime config:', e);
     }
   }
 
@@ -182,7 +187,13 @@ function saveRuntimeConfig(config: SupabaseRuntimeConfig) {
   try {
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8');
   } catch (e) {
-    console.warn('Gagal menyimpan .supabase-runtime.json:', e);
+    // Pada lingkungan serverless Vercel / Lambda, root folder bersifat read-only.
+    // Simpan ke /tmp sebagai gantinya.
+    try {
+      fs.writeFileSync(TMP_CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8');
+    } catch (tmpErr) {
+      console.warn('Gagal menyimpan config ke /tmp:', tmpErr);
+    }
   }
 }
 
@@ -417,21 +428,33 @@ async function connectToPostgres(connStr: string): Promise<{ success: boolean; e
   }
 }
 
-// Auto-connect to PostgreSQL on boot with retry
+let connectPromise: Promise<any> | null = null;
+
+// Auto-connect to PostgreSQL on boot with retry (singleton promise for serverless cold-starts)
 export async function initPostgres() {
+  if (pgPool) return pgPool;
+  if (connectPromise) return connectPromise;
+
   const config = loadRuntimeConfig();
   if (!config.connectionString) {
     console.log('[Supabase PG] Connection string tidak diatur — database in-memory aktif.');
     return null;
   }
   console.log('[Supabase PG] Menghubungkan otomatis ke Supabase PostgreSQL...');
-  const res = await connectToPostgres(config.connectionString);
-  if (res.success) {
-    console.log('[Supabase PG] Auto-connect ke Supabase berhasil!');
-  } else {
-    console.warn('[Supabase PG] Auto-connect awal belum berhasil:', res.error);
-  }
-  return pgPool;
+  connectPromise = connectToPostgres(config.connectionString).then(res => {
+    if (res.success) {
+      console.log('[Supabase PG] Auto-connect ke Supabase berhasil!');
+    } else {
+      console.warn('[Supabase PG] Auto-connect awal belum berhasil:', res.error);
+    }
+    connectPromise = null;
+    return pgPool;
+  }).catch(err => {
+    connectPromise = null;
+    throw err;
+  });
+
+  return connectPromise;
 }
 
 initPostgres().catch(err => {
@@ -442,14 +465,31 @@ export const app = express();
 
 app.use(express.json({ limit: '10mb' }));
 
-// Middleware auto-reconnect untuk serverless / cold-start:
-// Memastikan pgPool terhubung sebelum memproses endpoint /api
-app.use('/api', async (_req: Request, _res: Response, next) => {
-  if (!pgPool && !isConnecting) {
-    try {
-      await initPostgres();
-    } catch (e: any) {
-      console.warn('[Supabase PG Middleware] Auto-reconnect error:', e.message);
+// Middleware normalisasi path & auto-reconnect untuk serverless / cold-start:
+// Memastikan:
+// 1. Path Vercel yang dipotong prefix /api-nya tetap cocok dengan router Express
+// 2. pgPool terhubung sebelum memproses endpoint /api
+app.use(async (req: Request, _res: Response, next) => {
+  // Normalisasi jika Vercel me-rewrite ke /api/index atau memotong awalan /api
+  if (req.url.startsWith('/api/index.ts') || req.url.startsWith('/api/index')) {
+    req.url = req.url.replace(/^\/api\/index(\.ts)?/, '') || '/';
+  }
+
+  if (!req.url.startsWith('/api')) {
+    const apiPrefixes = ['/supabase', '/teachers', '/schedules', '/holidays', '/attendance', '/data'];
+    if (apiPrefixes.some(prefix => req.url.startsWith(prefix))) {
+      req.url = '/api' + req.url;
+    }
+  }
+
+  // Jika request mengarah ke API, pastikan koneksi PostgreSQL telah siap
+  if (req.url.startsWith('/api')) {
+    if (!pgPool) {
+      try {
+        await initPostgres();
+      } catch (e: any) {
+        console.warn('[Supabase PG Middleware] Auto-reconnect error:', e.message);
+      }
     }
   }
   next();
