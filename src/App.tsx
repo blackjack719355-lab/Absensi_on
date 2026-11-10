@@ -12,10 +12,13 @@ import { RekapBulananView } from './components/RekapBulananView';
 import { LaporanTahunanView } from './components/LaporanTahunanView';
 import { HariLiburView } from './components/HariLiburView';
 import { SupabaseModal } from './components/SupabaseModal';
+import { AdminLoginModal } from './components/AdminLoginModal';
+import { useAuth } from './context/AuthContext';
 import { storage } from './services/storage';
 import { Teacher, TeacherScheduleRow, HolidayItem } from './types';
 
 export default function App() {
+  const { isAdmin, openLoginModal } = useAuth();
   const [activeTab, setActiveTab] = useState<NavTab>('beranda');
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
   const [supabaseConfig, setSupabaseConfig] = useState(storage.getConfig());
@@ -24,6 +27,21 @@ export default function App() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [schedules, setSchedules] = useState<TeacherScheduleRow[]>([]);
   const [holidays, setHolidays] = useState<HolidayItem[]>([]);
+
+  // Lindungi tab jika pengguna logout atau bukan admin
+  useEffect(() => {
+    if (!isAdmin && activeTab !== 'beranda') {
+      setActiveTab('beranda');
+    }
+  }, [isAdmin, activeTab]);
+
+  const handleSelectTab = (tab: NavTab) => {
+    if (!isAdmin && tab !== 'beranda') {
+      openLoginModal();
+      return;
+    }
+    setActiveTab(tab);
+  };
 
   const loadData = () => {
     setTeachers(storage.getTeachers());
@@ -45,14 +63,20 @@ export default function App() {
       {/* Header Utama */}
       <Header
         supabaseConfig={supabaseConfig}
-        onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
+        onOpenSupabaseModal={() => {
+          if (!isAdmin) {
+            openLoginModal();
+          } else {
+            setIsSupabaseModalOpen(true);
+          }
+        }}
         activeTab={activeTab}
       />
 
-      {/* Navigasi Menu */}
+      {/* Navigasi Menu (Hanya menampilkan Beranda jika belum login admin) */}
       <Navigation
         activeTab={activeTab}
-        onSelectTab={(tab) => setActiveTab(tab)}
+        onSelectTab={handleSelectTab}
       />
 
       {/* Konten Utama */}
@@ -62,31 +86,31 @@ export default function App() {
             teachers={teachers}
             schedules={schedules}
             holidays={holidays}
-            onNavigateTab={(tab) => setActiveTab(tab)}
+            onNavigateTab={handleSelectTab}
             onRefreshData={loadData}
           />
         )}
 
-        {activeTab === 'jadwal' && (
+        {isAdmin && activeTab === 'jadwal' && (
           <JadwalView
             schedules={schedules}
             onRefreshData={loadData}
           />
         )}
 
-        {activeTab === 'rekap-bulanan' && (
+        {isAdmin && activeTab === 'rekap-bulanan' && (
           <RekapBulananView
             onRefreshData={loadData}
           />
         )}
 
-        {activeTab === 'laporan-tahunan' && (
+        {isAdmin && activeTab === 'laporan-tahunan' && (
           <LaporanTahunanView
             onRefreshData={loadData}
           />
         )}
 
-        {activeTab === 'hari-libur' && (
+        {isAdmin && activeTab === 'hari-libur' && (
           <HariLiburView
             holidays={holidays}
             onRefreshData={loadData}
@@ -94,13 +118,18 @@ export default function App() {
         )}
       </main>
 
-      {/* Modal Supabase Online */}
-      <SupabaseModal
-        isOpen={isSupabaseModalOpen}
-        onClose={() => setIsSupabaseModalOpen(false)}
-        config={supabaseConfig}
-        onRefreshData={loadData}
-      />
+      {/* Modal Supabase Online (Hanya Admin) */}
+      {isAdmin && (
+        <SupabaseModal
+          isOpen={isSupabaseModalOpen}
+          onClose={() => setIsSupabaseModalOpen(false)}
+          config={supabaseConfig}
+          onRefreshData={loadData}
+        />
+      )}
+
+      {/* Modal Login Admin & Ubah Password */}
+      <AdminLoginModal />
 
       {/* Footer Bersih & Elegan */}
       <footer className="border-t border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 py-6 hidden md:block transition-colors duration-150">

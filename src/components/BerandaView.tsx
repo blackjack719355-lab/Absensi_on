@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import { 
   Users, Clock, Award, Check, X, RotateCcw, AlertCircle, 
   CheckCircle2, BookOpen, Sparkles, Filter, CalendarOff, Calendar,
-  Save 
+  Save, Lock 
 } from 'lucide-react';
 import { AttendanceCheckStatus, DayOfWeek, HolidayItem, Teacher, TeacherScheduleRow } from '../types';
 import { storage, getLocalDateString, getLocalDayOfWeek } from '../services/storage';
+import { useAuth } from '../context/AuthContext';
 
 interface BerandaViewProps {
   teachers: Teacher[];
@@ -22,6 +23,7 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
   onNavigateTab,
   onRefreshData,
 }) => {
+  const { isAdmin } = useAuth();
   // Metrik Beranda:
   // 1. Jumlah guru aktif: selaras 100% dengan data pada menu jadwal
   const activeTeachersCount = schedules.length;
@@ -760,9 +762,11 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                       <button
                         type="button"
                         onClick={() => onNavigateTab('rekap-bulanan')}
-                        className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer shadow-2xs"
+                        className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer shadow-2xs flex items-center gap-1.5"
+                        title={isAdmin ? 'Buka Rekap Bulanan' : 'Perlu Login Admin untuk membuka Rekap Bulanan'}
                       >
-                        Buka Rekap Bulanan →
+                        {!isAdmin && <Lock className="w-3.5 h-3.5 text-amber-500" />}
+                        <span>Buka Rekap Bulanan →</span>
                       </button>
                     </div>
                   </div>
@@ -1055,9 +1059,11 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                       <button
                         type="button"
                         onClick={() => onNavigateTab('rekap-bulanan')}
-                        className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer shadow-2xs"
+                        className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer shadow-2xs flex items-center gap-1.5"
+                        title={isAdmin ? 'Buka Rekap Bulanan' : 'Perlu Login Admin untuk membuka Rekap Bulanan'}
                       >
-                        Buka Rekap Bulanan →
+                        {!isAdmin && <Lock className="w-3.5 h-3.5 text-amber-500" />}
+                        <span>Buka Rekap Bulanan →</span>
                       </button>
                     </div>
                   </div>

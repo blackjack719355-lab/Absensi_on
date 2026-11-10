@@ -278,18 +278,18 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
                   />
                   <div>
                     <div className="font-semibold text-sm flex items-center gap-2">
-                      <span>{config.status === 'connected' ? 'Supabase PostgreSQL Terhubung & Aktif' : 'Mode Offline (Penyimpanan Lokal)'}</span>
+                      <span>{config.status === 'connected' ? 'Database Terhubung & Aktif' : 'Mode Offline (Penyimpanan Lokal)'}</span>
                       {config.status === 'connected' && (
                         <span className="text-[10px] bg-emerald-200 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 font-bold px-2 py-0.5 rounded-md">
-                          PostgreSQL 15+
+                          Permanen &amp; Aman
                         </span>
                       )}
                     </div>
                     <div className="text-xs opacity-85 mt-0.5 font-mono break-all text-slate-700 dark:text-slate-300">
                       {config.status === 'connected' ? (
-                        <span>{displayMasked}</span>
+                        <span>{displayMasked || 'Database Server Permanen Aktif (Auto-Persist)'}</span>
                       ) : (
-                        <span>Data tersimpan di memori browser lokal. Hubungkan ke Supabase agar data permanen antar perangkat.</span>
+                        <span>Data tersimpan di memori browser lokal.</span>
                       )}
                     </div>
                   </div>
@@ -459,10 +459,21 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
                 )}
 
                 {connectError && (
-                  <div className="p-3 bg-red-50 dark:bg-rose-950/40 border border-red-200 dark:border-rose-900/60 text-red-700 dark:text-rose-300 text-xs rounded-xl flex items-start gap-2">
+                  <div className="p-3.5 bg-red-50 dark:bg-rose-950/40 border border-red-200 dark:border-rose-900/60 text-red-700 dark:text-rose-300 text-xs rounded-xl flex items-start gap-2.5">
                     <AlertTriangle className="w-4 h-4 text-red-500 dark:text-rose-400 shrink-0 mt-0.5" />
-                    <div className="flex-1">
+                    <div className="flex-1 space-y-1.5">
                       <p className="font-semibold">{connectError}</p>
+                      {(connectError.includes('not found') || connectError.includes('ENOTFOUND') || connectError.includes('Paused')) && (
+                        <div className="text-[11px] text-red-600 dark:text-rose-400/90 leading-relaxed bg-white/70 dark:bg-slate-900/60 p-2.5 rounded-lg border border-red-100 dark:border-rose-900/40">
+                          <p className="font-bold text-red-700 dark:text-rose-300 mb-1">💡 Cara Mengatasi:</p>
+                          <ol className="list-decimal pl-4 space-y-1">
+                            <li>Buka <strong>Supabase Dashboard</strong> (<a href="https://supabase.com/dashboard" target="_blank" rel="noreferrer" className="underline font-semibold hover:text-red-800 dark:hover:text-rose-200">supabase.com/dashboard</a>).</li>
+                            <li>Jika proyek berstatus <strong>"Paused"</strong>, klik <strong>"Restore project"</strong> (perlu ~1-2 menit hingga aktif).</li>
+                            <li>Masuk ke <strong>Project Settings → Database</strong>, gulir ke <strong>Connection Pooling</strong>.</li>
+                            <li>Pilih mode <strong>Session (5432)</strong> atau <strong>Transaction (6543)</strong>, salin connection string tersebut dan tempelkan ke kolom di atas.</li>
+                          </ol>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
