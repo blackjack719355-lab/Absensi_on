@@ -24,7 +24,7 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
 
   // Direct Connection String state
   const [connectionString, setConnectionString] = useState(
-    config.connectionString || 'postgresql://postgres:Sehat719355$@db.ugvxowesvhqjinmqdcje.supabase.co:5432/postgres'
+    config.connectionString || ''
   );
   const [showConnStr, setShowConnStr] = useState(false);
 
@@ -62,7 +62,7 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
     } else if (config.error) {
       setConnectError(config.error);
     }
-    if (config.connectionString && !connectionString.includes('Sehat719355')) {
+    if (config.connectionString) {
       setConnectionString(config.connectionString);
     }
   }, [config.status, config.error, config.connectionString]);
