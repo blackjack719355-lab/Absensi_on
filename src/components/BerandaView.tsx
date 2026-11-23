@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { 
   Users, Clock, Award, Check, X, RotateCcw, AlertCircle, 
-  CheckCircle2, BookOpen, Sparkles, Filter, CalendarOff, Calendar,
-  Save, Lock 
+  CheckCircle2, BookOpen, Sparkles, CalendarOff, Calendar,
+  Save, Lock, LogIn, Eye
 } from 'lucide-react';
 import { AttendanceCheckStatus, DayOfWeek, HolidayItem, Teacher, TeacherScheduleRow } from '../types';
 import { storage, getLocalDateString, getLocalDayOfWeek } from '../services/storage';
@@ -23,7 +23,7 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
   onNavigateTab,
   onRefreshData,
 }) => {
-  const { isAdmin } = useAuth();
+  const { isAdmin, canInputAttendance, openLoginModal } = useAuth();
   // Metrik Beranda:
   // 1. Jumlah guru aktif: selaras 100% dengan data pada menu jadwal
   const activeTeachersCount = schedules.length;
@@ -106,13 +106,21 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
 
   // Tombol Simpan Presensi Manual (Memberikan kepastian penuh kepada pengguna)
   const handleManualSave = () => {
+    if (!canInputAttendance) {
+      openLoginModal();
+      return;
+    }
     storage.saveAttendances();
     onRefreshData();
-    showSaveSuccess(`Presensi hari ${selectedDay}, ${formatIndoDate(quickDate)} berhasil disimpan & disinkronkan ke Rekap Bulanan!`);
+    showSaveSuccess(`Presensi hari ${selectedDay}, ${formatIndoDate(quickDate)} berhasil disimpan & disinkronkan!`);
   };
 
   // Toggle status checkbox per jam/slot sesi
   const handleToggleSlot = (teacherId: string, type: 'mengajar' | 'tahfidz', slotIndex: number) => {
+    if (!canInputAttendance) {
+      openLoginModal();
+      return;
+    }
     storage.toggleTeacherSlotAttendance(quickDate, teacherId, type, slotIndex, selectedDay);
     notifyAutoSave();
     onRefreshData();
@@ -120,6 +128,10 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
 
   // Set semua slot presensi untuk guru tertentu (1-tap pada mobile)
   const handleSetTeacherSlots = (teacherId: string, type: 'mengajar' | 'tahfidz', status: AttendanceCheckStatus) => {
+    if (!canInputAttendance) {
+      openLoginModal();
+      return;
+    }
     storage.setTeacherSlotsForSection(quickDate, teacherId, type, status, selectedDay);
     notifyAutoSave();
     onRefreshData();
@@ -127,6 +139,10 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
 
   // Bulk actions per bagian (Mengajar / Tahfidz)
   const handleMarkSectionHadir = (type: 'mengajar' | 'tahfidz') => {
+    if (!canInputAttendance) {
+      openLoginModal();
+      return;
+    }
     storage.setSectionAttendance(quickDate, type, 'hadir', selectedDay);
     notifyAutoSave();
     onRefreshData();
@@ -134,6 +150,10 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
   };
 
   const handleResetSection = (type: 'mengajar' | 'tahfidz') => {
+    if (!canInputAttendance) {
+      openLoginModal();
+      return;
+    }
     storage.setSectionAttendance(quickDate, type, 'belum_absen', selectedDay);
     notifyAutoSave();
     onRefreshData();
@@ -142,15 +162,23 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
 
   // Tandai semua hadir hari ini
   const handleMarkAllHadir = () => {
+    if (!canInputAttendance) {
+      openLoginModal();
+      return;
+    }
     storage.setSectionAttendance(quickDate, 'mengajar', 'hadir', selectedDay);
     storage.setSectionAttendance(quickDate, 'tahfidz', 'hadir', selectedDay);
     notifyAutoSave();
     onRefreshData();
-    showSaveSuccess('Semua guru Mengajar & Tahfidz berhasil ditandai hadir dan tersimpan ke Rekap!');
+    showSaveSuccess('Semua guru Mengajar & Tahfidz berhasil ditandai hadir dan tersimpan!');
   };
 
   // Kosongkan semua presensi hari ini
   const handleResetAllAttendance = () => {
+    if (!canInputAttendance) {
+      openLoginModal();
+      return;
+    }
     storage.setSectionAttendance(quickDate, 'mengajar', 'belum_absen', selectedDay);
     storage.setSectionAttendance(quickDate, 'tahfidz', 'belum_absen', selectedDay);
     notifyAutoSave();
@@ -310,29 +338,44 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              {/* Indikator Status Auto-Save Real-time */}
-              <div 
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
-                  saveStatus === 'saving'
-                    ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800'
-                    : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
-                }`}
-                title="Sistem menyimpan presensi secara otomatis setiap kali Anda mencentang atau mengubah status"
-              >
-                <CheckCircle2 className={`w-3.5 h-3.5 ${saveStatus === 'saving' ? 'text-amber-600 animate-spin' : 'text-emerald-600 dark:text-emerald-400'}`} />
-                <span>{saveStatus === 'saving' ? 'Menyimpan...' : 'Tersimpan Otomatis'}</span>
-              </div>
+              {canInputAttendance ? (
+                <>
+                  {/* Indikator Status Auto-Save Real-time */}
+                  <div
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition-all whitespace-nowrap shrink-0 ${
+                      saveStatus === 'saving'
+                        ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                        : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                    }`}
+                    title="Sistem menyimpan presensi secara otomatis setiap kali Anda mencentang atau mengubah status"
+                  >
+                    <CheckCircle2
+                      className={`w-3.5 h-3.5 ${
+                        saveStatus === 'saving'
+                          ? 'text-amber-600 animate-spin'
+                          : 'text-emerald-600 dark:text-emerald-400'
+                      }`}
+                    />
+                    <span>{saveStatus === 'saving' ? 'Menyimpan...' : 'Tersimpan Otomatis'}</span>
+                  </div>
 
-              {/* Tombol Simpan Presensi */}
-              <button
-                type="button"
-                onClick={handleManualSave}
-                className="px-3 py-1.5 text-xs font-bold bg-emerald-700 hover:bg-emerald-800 dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white active:scale-95 transition rounded-xl flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                title="Simpan & sinkronkan presensi hari ini ke Rekap Bulanan"
-              >
-                <Save className="w-3.5 h-3.5" />
-                <span>Simpan Presensi</span>
-              </button>
+                  {/* Tombol Simpan Presensi */}
+                  <button
+                    type="button"
+                    onClick={handleManualSave}
+                    className="px-3 py-1.5 text-xs font-bold bg-emerald-700 hover:bg-emerald-800 dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white active:scale-95 transition rounded-xl flex items-center gap-1.5 cursor-pointer shadow-2xs whitespace-nowrap shrink-0"
+                    title="Simpan & sinkronkan presensi hari ini"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>Simpan Presensi</span>
+                  </button>
+                </>
+              ) : (
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 whitespace-nowrap shrink-0">
+                  <Eye className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+                  <span>Mode Lihat Saja</span>
+                </div>
+              )}
 
               <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 rounded-xl px-2.5 py-1.5 shadow-2xs">
                 <Calendar className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
@@ -357,7 +400,7 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                 <button
                   type="button"
                   onClick={handleResetToToday}
-                  className="px-3 py-1.5 text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-xl hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition flex items-center gap-1 cursor-pointer shadow-2xs"
+                  className="px-3 py-1.5 text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-xl hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition flex items-center gap-1 cursor-pointer shadow-2xs whitespace-nowrap shrink-0"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   <span>Hari Ini</span>
@@ -381,7 +424,7 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                 <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
                 <span className="truncate">Presensi Mengajar</span>
                 <span className={`text-[10px] sm:text-xs px-2 py-0.5 rounded-full font-mono font-bold shrink-0 ${
-                  sectionFilter === 'mengajar' ? 'bg-blue-800 text-blue-100' : 'bg-slate-200 text-slate-700'
+                  sectionFilter === 'mengajar' ? 'bg-blue-800 text-blue-100' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
                 }`}>
                   {holidayCheckMengajar.isHoliday ? 'Libur Mengajar' : `${teachingTeachersToday.length} Guru`}
                 </span>
@@ -392,14 +435,14 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                 onClick={() => setSectionFilter('tahfidz')}
                 className={`flex items-center justify-center gap-2 py-2.5 sm:py-3 px-3 sm:px-4 rounded-lg sm:rounded-xl font-bold text-xs sm:text-base transition-all cursor-pointer ${
                   sectionFilter === 'tahfidz'
-                    ? 'bg-teal-700 text-white shadow-sm shadow-teal-900/25 ring-1 ring-teal-800/20'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
+                    ? 'bg-teal-700 dark:bg-teal-600 text-white shadow-sm shadow-teal-900/25 ring-1 ring-teal-800/20'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/70 dark:hover:bg-slate-700/60'
                 }`}
               >
                 <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
                 <span className="truncate">Presensi Tahfidz</span>
                 <span className={`text-[10px] sm:text-xs px-2 py-0.5 rounded-full font-mono font-bold shrink-0 ${
-                  sectionFilter === 'tahfidz' ? 'bg-teal-800 text-teal-100' : 'bg-slate-200 text-slate-700'
+                  sectionFilter === 'tahfidz' ? 'bg-teal-800 text-teal-100' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
                 }`}>
                   {holidayCheckTahfidz.isHoliday && !holidayCheckTahfidz.isTahfidzPartial
                     ? 'Libur Tahfidz'
@@ -411,78 +454,98 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
             </div>
           </div>
 
-          {/* Legend Checkbox & Tombol Aksi Cepat Kontekstual */}
-          <div className="mt-4 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/80 dark:bg-slate-800/60 p-3 sm:p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700 text-xs">
-            {/* Legend petunjuk status checkbox */}
-            <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-slate-700 dark:text-slate-300">
-              <span className="font-semibold text-slate-900 dark:text-white">Petunjuk Absen:</span>
-              <div className="flex items-center gap-1.5">
-                <span className="w-5 h-5 rounded-md bg-emerald-600 text-white flex items-center justify-center font-bold">
+          {/* Toolbar: Input Controls (Jika Login) ATAU Notice Read-Only + Tombol Login (Jika Belum Login) */}
+          {canInputAttendance ? (
+            <div className="mt-4 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/80 dark:bg-slate-800/60 p-3 sm:p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700 text-xs">
+              {/* Legend petunjuk status checkbox */}
+              <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-slate-700 dark:text-slate-300">
+                <span className="font-semibold text-slate-900 dark:text-white">Petunjuk Absen:</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-5 h-5 rounded-md bg-emerald-600 text-white flex items-center justify-center font-bold">
+                    <Check className="w-3.5 h-3.5 stroke-[3]" />
+                  </span>
+                  <span>Centang = Hadir</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-5 h-5 rounded-md bg-rose-600 text-white flex items-center justify-center font-bold">
+                    <X className="w-3.5 h-3.5 stroke-[3]" />
+                  </span>
+                  <span>Silang = Tidak Hadir</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-5 h-5 rounded-md bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 flex items-center justify-center"></span>
+                  <span>Kosong = Belum Diabsen</span>
+                </div>
+              </div>
+
+              {/* Tombol Aksi Cepat Kontekstual Sesuai Pilihan */}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleMarkAllHadir}
+                  className="px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-700 hover:bg-emerald-800 dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white transition cursor-pointer shadow-xs flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                  title="Tandai semua guru hadir baik mengajar maupun tahfidz pada hari ini"
+                >
                   <Check className="w-3.5 h-3.5 stroke-[3]" />
-                </span>
-                <span>Centang = Hadir</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-5 h-5 rounded-md bg-rose-600 text-white flex items-center justify-center font-bold">
-                  <X className="w-3.5 h-3.5 stroke-[3]" />
-                </span>
-                <span>Silang = Tidak Hadir</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-5 h-5 rounded-md bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 flex items-center justify-center"></span>
-                <span>Kosong = Belum Diabsen</span>
+                  <span>Hadirkan Semua (KBM & Tahfidz)</span>
+                </button>
+
+                {sectionFilter === 'mengajar' ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleMarkSectionHadir('mengajar')}
+                      className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-700 hover:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-700 text-white transition cursor-pointer shadow-xs whitespace-nowrap shrink-0"
+                    >
+                      Centang Semua Mengajar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleResetSection('mengajar')}
+                      className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer whitespace-nowrap shrink-0"
+                    >
+                      Kosongkan Mengajar
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleMarkSectionHadir('tahfidz')}
+                      className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white transition cursor-pointer shadow-xs whitespace-nowrap shrink-0"
+                    >
+                      Centang Semua Tahfidz
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleResetSection('tahfidz')}
+                      className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer whitespace-nowrap shrink-0"
+                    >
+                      Kosongkan Tahfidz
+                    </button>
+                  </>
+                )}
               </div>
             </div>
-
-            {/* Tombol Aksi Cepat Kontekstual Sesuai Pilihan */}
-            <div className="flex flex-wrap items-center gap-2">
+          ) : (
+            <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 dark:bg-slate-800/60 p-3.5 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
+              <div className="flex items-start sm:items-center gap-2.5 text-slate-700 dark:text-slate-300">
+                <Lock className="w-4 h-4 text-slate-500 dark:text-slate-400 shrink-0 mt-0.5 sm:mt-0" />
+                <div className="leading-relaxed">
+                  <strong className="text-slate-900 dark:text-white">Tampilan Read-Only (Belum Login).</strong>{' '}
+                  Anda dapat melihat jadwal dan status kehadiran pada tanggal pilihan. Untuk mengisi absensi, silakan login sebagai Pengisi Absensi atau Admin.
+                </div>
+              </div>
               <button
                 type="button"
-                onClick={handleMarkAllHadir}
-                className="px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-700 hover:bg-emerald-800 dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white transition cursor-pointer shadow-xs flex items-center gap-1.5"
-                title="Tandai semua guru hadir baik mengajar maupun tahfidz pada hari ini"
+                onClick={openLoginModal}
+                className="px-4 py-2 text-xs font-bold rounded-xl bg-emerald-700 hover:bg-emerald-800 dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white transition shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
               >
-                <Check className="w-3.5 h-3.5 stroke-[3]" />
-                <span>Hadirkan Semua (KBM & Tahfidz)</span>
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Login untuk Mengisi Absen</span>
               </button>
-
-              {sectionFilter === 'mengajar' ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => handleMarkSectionHadir('mengajar')}
-                    className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-700 hover:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-700 text-white transition cursor-pointer shadow-xs"
-                  >
-                    Centang Semua Mengajar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleResetSection('mengajar')}
-                    className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer"
-                  >
-                    Kosongkan Mengajar
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => handleMarkSectionHadir('tahfidz')}
-                    className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white transition cursor-pointer shadow-xs"
-                  >
-                    Centang Semua Tahfidz
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleResetSection('tahfidz')}
-                    className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer"
-                  >
-                    Kosongkan Tahfidz
-                  </button>
-                </>
-              )}
             </div>
-          </div>
+          )}
 
           {/* Indikator Status Hari Libur Umum jika ada */}
           {holidayCheckGeneral.isHoliday && (
@@ -576,61 +639,86 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                             </div>
                           </div>
 
-                          {/* Kontrol Input Presensi Sederhana: 1-Ketuk Aksi Cepat + Slot Jam */}
-                          <div className="flex items-center gap-1.5 pt-0.5">
-                            {/* Tombol Cepat Hadirkan Semua Jam Guru Ini */}
-                            <button
-                              type="button"
-                              onClick={() => handleSetTeacherSlots(sch.teacherId, 'mengajar', isAllHadir ? 'belum_absen' : 'hadir')}
-                              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition active:scale-95 cursor-pointer shrink-0 ${
-                                isAllHadir
-                                  ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-200'
-                                  : 'bg-blue-700 hover:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-700 text-white shadow-2xs'
-                              }`}
-                            >
-                              <Check className="w-3.5 h-3.5 stroke-[3]" />
-                              <span>{isAllHadir ? 'Hadir Semua' : 'Set Hadir'}</span>
-                            </button>
+                          {/* Kontrol Input Presensi (Login) atau Status Read-Only (Tamu) */}
+                          {canInputAttendance ? (
+                            <div className="flex items-center gap-1.5 pt-0.5">
+                              {/* Tombol Cepat Hadirkan Semua Jam Guru Ini */}
+                              <button
+                                type="button"
+                                onClick={() => handleSetTeacherSlots(sch.teacherId, 'mengajar', isAllHadir ? 'belum_absen' : 'hadir')}
+                                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition active:scale-95 cursor-pointer shrink-0 ${
+                                  isAllHadir
+                                    ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-200'
+                                    : 'bg-blue-700 hover:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-700 text-white shadow-2xs'
+                                }`}
+                              >
+                                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                <span>{isAllHadir ? 'Hadir Semua' : 'Set Hadir'}</span>
+                              </button>
 
-                            {/* Tombol Cepat Tidak Hadir */}
-                            <button
-                              type="button"
-                              onClick={() => handleSetTeacherSlots(sch.teacherId, 'mengajar', 'tidak_hadir')}
-                              title="Set Tidak Hadir"
-                              className="p-1.5 rounded-lg border border-rose-200 dark:border-rose-800/80 bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/50 transition active:scale-95 cursor-pointer shrink-0"
-                            >
-                              <X className="w-3.5 h-3.5 stroke-[3]" />
-                            </button>
+                              {/* Tombol Cepat Tidak Hadir */}
+                              <button
+                                type="button"
+                                onClick={() => handleSetTeacherSlots(sch.teacherId, 'mengajar', 'tidak_hadir')}
+                                title="Set Tidak Hadir"
+                                className="p-1.5 rounded-lg border border-rose-200 dark:border-rose-800/80 bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/50 transition active:scale-95 cursor-pointer shrink-0"
+                              >
+                                <X className="w-3.5 h-3.5 stroke-[3]" />
+                              </button>
 
-                            {/* Checkbox per Jam Mengajar */}
-                            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar flex-1 justify-end">
+                              {/* Checkbox per Jam Mengajar */}
+                              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar flex-1 justify-end">
+                                {Array.from({ length: targetMengajar }).map((_, slotIdx) => {
+                                  const slotStatus = record?.mengajarSlots?.[slotIdx] || 'belum_absen';
+                                  return (
+                                    <button
+                                      key={slotIdx}
+                                      type="button"
+                                      onClick={() => handleToggleSlot(sch.teacherId, 'mengajar', slotIdx)}
+                                      title={`Jam ${slotIdx + 1}: Ketuk ubah status`}
+                                      className={`h-8 px-2 rounded-lg border flex items-center gap-1 transition active:scale-95 cursor-pointer text-xs font-semibold shrink-0 ${
+                                        slotStatus === 'hadir'
+                                          ? 'bg-emerald-600 border-emerald-600 text-white'
+                                          : slotStatus === 'tidak_hadir'
+                                          ? 'bg-rose-600 border-rose-600 text-white'
+                                          : 'bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                                      }`}
+                                    >
+                                      {slotStatus === 'hadir' && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                                      {slotStatus === 'tidak_hadir' && <X className="w-3.5 h-3.5 stroke-[3]" />}
+                                      {slotStatus === 'belum_absen' && (
+                                        <span className="w-2.5 h-2.5 rounded-xs border border-slate-400 dark:border-slate-500 block bg-white dark:bg-slate-900"></span>
+                                      )}
+                                      <span className="font-mono text-[11px]">J{slotIdx + 1}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center flex-wrap gap-1.5 pt-0.5 text-[11px]">
                               {Array.from({ length: targetMengajar }).map((_, slotIdx) => {
                                 const slotStatus = record?.mengajarSlots?.[slotIdx] || 'belum_absen';
                                 return (
-                                  <button
+                                  <span
                                     key={slotIdx}
-                                    type="button"
-                                    onClick={() => handleToggleSlot(sch.teacherId, 'mengajar', slotIdx)}
-                                    title={`Jam ${slotIdx + 1}: Ketuk ubah status`}
-                                    className={`h-8 px-2 rounded-lg border flex items-center gap-1 transition active:scale-95 cursor-pointer text-xs font-semibold shrink-0 ${
+                                    className={`px-2 py-1 rounded-lg border inline-flex items-center gap-1 font-medium ${
                                       slotStatus === 'hadir'
-                                        ? 'bg-emerald-600 border-emerald-600 text-white'
+                                        ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
                                         : slotStatus === 'tidak_hadir'
-                                        ? 'bg-rose-600 border-rose-600 text-white'
-                                        : 'bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                                        ? 'bg-rose-50 dark:bg-rose-950/60 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300'
+                                        : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400'
                                     }`}
                                   >
-                                    {slotStatus === 'hadir' && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                                    {slotStatus === 'tidak_hadir' && <X className="w-3.5 h-3.5 stroke-[3]" />}
-                                    {slotStatus === 'belum_absen' && (
-                                      <span className="w-2.5 h-2.5 rounded-xs border border-slate-400 dark:border-slate-500 block bg-white dark:bg-slate-900"></span>
-                                    )}
-                                    <span className="font-mono text-[11px]">J{slotIdx + 1}</span>
-                                  </button>
+                                    {slotStatus === 'hadir' && <Check className="w-3 h-3 stroke-[3]" />}
+                                    {slotStatus === 'tidak_hadir' && <X className="w-3 h-3 stroke-[3]" />}
+                                    <span className="font-mono">J{slotIdx + 1}:</span>
+                                    <span>{slotStatus === 'hadir' ? 'Hadir' : slotStatus === 'tidak_hadir' ? 'Absen' : 'Belum'}</span>
+                                  </span>
                                 );
                               })}
                             </div>
-                          </div>
+                          )}
                         </div>
                       );
                     })}
@@ -644,7 +732,9 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                           <th className="py-3 px-3.5 w-12 text-center">No</th>
                           <th className="py-3 px-3.5">Nama Guru</th>
                           <th className="py-3 px-3 text-center w-28 whitespace-nowrap">Jadwal Hari Ini</th>
-                          <th className="py-3 px-4 text-center">Presensi (Checkbox per Jam Mengajar)</th>
+                          <th className="py-3 px-4 text-center">
+                            {canInputAttendance ? 'Presensi (Checkbox per Jam Mengajar)' : 'Status Kehadiran per Jam (Read-Only)'}
+                          </th>
                           <th className="py-3 px-3.5 text-center w-28 whitespace-nowrap">Realisasi</th>
                         </tr>
                       </thead>
@@ -674,48 +764,75 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                                 </span>
                               </td>
 
-                              {/* Checkbox Sesuai Jumlah Jam Mengajar Hari Ini */}
+                              {/* Checkbox Interaktif (Jika Login) atau Indikator Status Read-Only (Tamu) */}
                               <td className="py-3 px-4">
-                                <div className="flex flex-wrap items-center justify-center gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSetTeacherSlots(sch.teacherId, 'mengajar', actualMengajar === targetMengajar && targetMengajar > 0 ? 'belum_absen' : 'hadir')}
-                                    className={`h-9 px-2.5 rounded-xl border flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer text-xs font-semibold shrink-0 ${
-                                      actualMengajar === targetMengajar && targetMengajar > 0
-                                        ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-200'
-                                        : 'bg-blue-50 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800 hover:bg-blue-100'
-                                    }`}
-                                    title={actualMengajar === targetMengajar && targetMengajar > 0 ? 'Klik untuk reset' : 'Klik untuk hadirkan semua jam'}
-                                  >
-                                    <Check className="w-3.5 h-3.5 stroke-[3]" />
-                                    <span>{actualMengajar === targetMengajar && targetMengajar > 0 ? 'Hadir Semua' : 'Set Hadir'}</span>
-                                  </button>
-                                  {Array.from({ length: targetMengajar }).map((_, slotIdx) => {
-                                    const slotStatus = record?.mengajarSlots?.[slotIdx] || 'belum_absen';
-                                    return (
-                                      <button
-                                        key={slotIdx}
-                                        type="button"
-                                        onClick={() => handleToggleSlot(sch.teacherId, 'mengajar', slotIdx)}
-                                        title={`Jam ke-${slotIdx + 1}: Klik untuk ubah Kosong -> Centang (Hadir) -> Silang (Tidak Hadir)`}
-                                        className={`min-w-[4.6rem] h-9 px-2.5 rounded-xl border flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer text-xs font-semibold shadow-2xs ${
-                                          slotStatus === 'hadir'
-                                            ? 'bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700'
-                                            : slotStatus === 'tidak_hadir'
-                                            ? 'bg-rose-600 border-rose-600 text-white hover:bg-rose-700'
-                                            : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-slate-400 dark:hover:border-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'
-                                        }`}
-                                      >
-                                        {slotStatus === 'hadir' && <Check className="w-4 h-4 stroke-[3]" />}
-                                        {slotStatus === 'tidak_hadir' && <X className="w-4 h-4 stroke-[3]" />}
-                                        {slotStatus === 'belum_absen' && (
-                                          <span className="w-3.5 h-3.5 rounded-xs border-2 border-slate-300 dark:border-slate-500 block bg-slate-50 dark:bg-slate-900"></span>
-                                        )}
-                                        <span className="font-mono text-[11px]">Jam {slotIdx + 1}</span>
-                                      </button>
-                                    );
-                                  })}
-                                </div>
+                                {canInputAttendance ? (
+                                  <div className="flex flex-wrap items-center justify-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSetTeacherSlots(sch.teacherId, 'mengajar', actualMengajar === targetMengajar && targetMengajar > 0 ? 'belum_absen' : 'hadir')}
+                                      className={`h-9 px-2.5 rounded-xl border flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer text-xs font-semibold shrink-0 ${
+                                        actualMengajar === targetMengajar && targetMengajar > 0
+                                          ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-200'
+                                          : 'bg-blue-50 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800 hover:bg-blue-100'
+                                      }`}
+                                      title={actualMengajar === targetMengajar && targetMengajar > 0 ? 'Klik untuk reset' : 'Klik untuk hadirkan semua jam'}
+                                    >
+                                      <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                      <span>{actualMengajar === targetMengajar && targetMengajar > 0 ? 'Hadir Semua' : 'Set Hadir'}</span>
+                                    </button>
+                                    {Array.from({ length: targetMengajar }).map((_, slotIdx) => {
+                                      const slotStatus = record?.mengajarSlots?.[slotIdx] || 'belum_absen';
+                                      return (
+                                        <button
+                                          key={slotIdx}
+                                          type="button"
+                                          onClick={() => handleToggleSlot(sch.teacherId, 'mengajar', slotIdx)}
+                                          title={`Jam ke-${slotIdx + 1}: Klik untuk ubah Kosong -> Centang (Hadir) -> Silang (Tidak Hadir)`}
+                                          className={`min-w-[4.6rem] h-9 px-2.5 rounded-xl border flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer text-xs font-semibold shadow-2xs ${
+                                            slotStatus === 'hadir'
+                                              ? 'bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700'
+                                              : slotStatus === 'tidak_hadir'
+                                              ? 'bg-rose-600 border-rose-600 text-white hover:bg-rose-700'
+                                              : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-slate-400 dark:hover:border-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'
+                                          }`}
+                                        >
+                                          {slotStatus === 'hadir' && <Check className="w-4 h-4 stroke-[3]" />}
+                                          {slotStatus === 'tidak_hadir' && <X className="w-4 h-4 stroke-[3]" />}
+                                          {slotStatus === 'belum_absen' && (
+                                            <span className="w-3.5 h-3.5 rounded-xs border-2 border-slate-300 dark:border-slate-500 block bg-slate-50 dark:bg-slate-900"></span>
+                                          )}
+                                          <span className="font-mono text-[11px]">Jam {slotIdx + 1}</span>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <div className="flex flex-wrap items-center justify-center gap-2">
+                                    {Array.from({ length: targetMengajar }).map((_, slotIdx) => {
+                                      const slotStatus = record?.mengajarSlots?.[slotIdx] || 'belum_absen';
+                                      return (
+                                        <span
+                                          key={slotIdx}
+                                          className={`h-8 px-2.5 rounded-lg border inline-flex items-center gap-1.5 text-xs font-medium ${
+                                            slotStatus === 'hadir'
+                                              ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
+                                              : slotStatus === 'tidak_hadir'
+                                              ? 'bg-rose-50 dark:bg-rose-950/60 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300'
+                                              : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400'
+                                          }`}
+                                        >
+                                          {slotStatus === 'hadir' && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                                          {slotStatus === 'tidak_hadir' && <X className="w-3.5 h-3.5 stroke-[3]" />}
+                                          <span className="font-mono text-[11px]">Jam {slotIdx + 1}:</span>
+                                          <span>
+                                            {slotStatus === 'hadir' ? 'Hadir' : slotStatus === 'tidak_hadir' ? 'Tidak Hadir' : 'Belum Absen'}
+                                          </span>
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
+                                )}
                               </td>
 
                               {/* Realisasi Kehadiran */}
@@ -743,32 +860,52 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
 
                   {/* Footer Penjamin & Tombol Simpan Presensi Mengajar */}
                   <div className="p-3.5 sm:p-4 bg-slate-50/90 dark:bg-slate-800/70 border-t border-slate-200/80 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 animate-pulse"></span>
-                      <span>
-                        Status: <strong className="text-emerald-800 dark:text-emerald-300">Tersimpan Otomatis</strong>. Setiap centang kehadiran langsung masuk ke Rekap Bulanan.
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={handleManualSave}
-                        className="px-3.5 py-2 text-xs font-bold rounded-xl bg-emerald-700 hover:bg-emerald-800 dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white active:scale-95 transition cursor-pointer shadow-xs flex items-center gap-1.5"
-                        title="Simpan & pastikan presensi mengajar tersinkron"
-                      >
-                        <Save className="w-3.5 h-3.5" />
-                        <span>Simpan Presensi</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onNavigateTab('rekap-bulanan')}
-                        className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer shadow-2xs flex items-center gap-1.5"
-                        title={isAdmin ? 'Buka Rekap Bulanan' : 'Perlu Login Admin untuk membuka Rekap Bulanan'}
-                      >
-                        {!isAdmin && <Lock className="w-3.5 h-3.5 text-amber-500" />}
-                        <span>Buka Rekap Bulanan →</span>
-                      </button>
-                    </div>
+                    {canInputAttendance ? (
+                      <>
+                        <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                          <span>
+                            Status: <strong className="text-emerald-800 dark:text-emerald-300">Tersimpan Otomatis</strong>. Setiap centang kehadiran langsung tercatat ke database.
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={handleManualSave}
+                            className="px-3.5 py-2 text-xs font-bold rounded-xl bg-emerald-700 hover:bg-emerald-800 dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white active:scale-95 transition cursor-pointer shadow-xs flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                            title="Simpan & pastikan presensi mengajar tersinkron"
+                          >
+                            <Save className="w-3.5 h-3.5" />
+                            <span>Simpan Presensi</span>
+                          </button>
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => onNavigateTab('rekap-bulanan')}
+                              className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer shadow-2xs flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                              title="Buka Rekap Bulanan"
+                            >
+                              <span>Buka Rekap Bulanan →</span>
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                          <Eye className="w-4 h-4 text-slate-500 shrink-0" />
+                          <span>Mode Baca Saja · Login sebagai Pengisi Absensi atau Admin untuk menginput kehadiran.</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={openLoginModal}
+                          className="px-3.5 py-2 text-xs font-bold rounded-xl bg-emerald-700 hover:bg-emerald-800 dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white transition cursor-pointer shadow-2xs flex items-center gap-1.5 whitespace-nowrap shrink-0 self-start sm:self-auto"
+                        >
+                          <LogIn className="w-3.5 h-3.5" />
+                          <span>Login</span>
+                        </button>
+                      </>
+                    )}
                   </div>
                 </>
               )}
@@ -863,64 +1000,91 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                             </div>
                           </div>
 
-                          {/* Kontrol Input Presensi Sederhana: 1-Ketuk Aksi Cepat + Slot Jam */}
-                          <div className="flex items-center gap-1.5 pt-0.5">
-                            {/* Tombol Cepat Hadirkan Semua Jam Guru Ini */}
-                            <button
-                              type="button"
-                              onClick={() => handleSetTeacherSlots(sch.teacherId, 'tahfidz', isAllHadir ? 'belum_absen' : 'hadir')}
-                              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition active:scale-95 cursor-pointer shrink-0 ${
-                                isAllHadir
-                                  ? 'bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-200 hover:bg-teal-200'
-                                  : 'bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white shadow-2xs'
-                              }`}
-                            >
-                              <Check className="w-3.5 h-3.5 stroke-[3]" />
-                              <span>{isAllHadir ? 'Hadir Semua' : 'Set Hadir'}</span>
-                            </button>
+                          {/* Kontrol Input Presensi (Login) atau Status Read-Only (Tamu) */}
+                          {canInputAttendance ? (
+                            <div className="flex items-center gap-1.5 pt-0.5">
+                              {/* Tombol Cepat Hadirkan Semua Jam Guru Ini */}
+                              <button
+                                type="button"
+                                onClick={() => handleSetTeacherSlots(sch.teacherId, 'tahfidz', isAllHadir ? 'belum_absen' : 'hadir')}
+                                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition active:scale-95 cursor-pointer shrink-0 ${
+                                  isAllHadir
+                                    ? 'bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-200 hover:bg-teal-200'
+                                    : 'bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white shadow-2xs'
+                                }`}
+                              >
+                                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                <span>{isAllHadir ? 'Hadir Semua' : 'Set Hadir'}</span>
+                              </button>
 
-                            {/* Tombol Cepat Tidak Hadir */}
-                            <button
-                              type="button"
-                              onClick={() => handleSetTeacherSlots(sch.teacherId, 'tahfidz', 'tidak_hadir')}
-                              title="Set Tidak Hadir"
-                              className="p-1.5 rounded-lg border border-rose-200 dark:border-rose-800/80 bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/50 transition active:scale-95 cursor-pointer shrink-0"
-                            >
-                              <X className="w-3.5 h-3.5 stroke-[3]" />
-                            </button>
+                              {/* Tombol Cepat Tidak Hadir */}
+                              <button
+                                type="button"
+                                onClick={() => handleSetTeacherSlots(sch.teacherId, 'tahfidz', 'tidak_hadir')}
+                                title="Set Tidak Hadir"
+                                className="p-1.5 rounded-lg border border-rose-200 dark:border-rose-800/80 bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/50 transition active:scale-95 cursor-pointer shrink-0"
+                              >
+                                <X className="w-3.5 h-3.5 stroke-[3]" />
+                              </button>
 
-                            {/* Checkbox per Jam Tahfidz */}
-                            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar flex-1 justify-end">
+                              {/* Checkbox per Jam Tahfidz */}
+                              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar flex-1 justify-end">
+                                {Array.from({ length: targetTahfidz }).map((_, slotIdx) => {
+                                  const slotStatus = record?.tahfidzSlots?.[slotIdx] || 'belum_absen';
+                                  const slotLabel = getTahfidzSlotLabel(slotIdx, targetTahfidz);
+                                  const shortLabel = getTahfidzSlotShortLabel(slotIdx, targetTahfidz);
+
+                                  return (
+                                    <button
+                                      key={slotIdx}
+                                      type="button"
+                                      onClick={() => handleToggleSlot(sch.teacherId, 'tahfidz', slotIdx)}
+                                      title={`Tahfidz ${slotLabel}: Ketuk ubah status`}
+                                      className={`h-8 px-2 rounded-lg border flex items-center gap-1 transition active:scale-95 cursor-pointer text-xs font-semibold shrink-0 ${
+                                        slotStatus === 'hadir'
+                                          ? 'bg-teal-600 border-teal-600 text-white'
+                                          : slotStatus === 'tidak_hadir'
+                                          ? 'bg-rose-600 border-rose-600 text-white'
+                                          : 'bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                                      }`}
+                                    >
+                                      {slotStatus === 'hadir' && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                                      {slotStatus === 'tidak_hadir' && <X className="w-3.5 h-3.5 stroke-[3]" />}
+                                      {slotStatus === 'belum_absen' && (
+                                        <span className="w-2.5 h-2.5 rounded-xs border border-slate-400 dark:border-slate-500 block bg-white dark:bg-slate-900"></span>
+                                      )}
+                                      <span className="font-mono text-[11px]">{shortLabel}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center flex-wrap gap-1.5 pt-0.5 text-[11px]">
                               {Array.from({ length: targetTahfidz }).map((_, slotIdx) => {
                                 const slotStatus = record?.tahfidzSlots?.[slotIdx] || 'belum_absen';
-                                const slotLabel = getTahfidzSlotLabel(slotIdx, targetTahfidz);
                                 const shortLabel = getTahfidzSlotShortLabel(slotIdx, targetTahfidz);
 
                                 return (
-                                  <button
+                                  <span
                                     key={slotIdx}
-                                    type="button"
-                                    onClick={() => handleToggleSlot(sch.teacherId, 'tahfidz', slotIdx)}
-                                    title={`Tahfidz ${slotLabel}: Ketuk ubah status`}
-                                    className={`h-8 px-2 rounded-lg border flex items-center gap-1 transition active:scale-95 cursor-pointer text-xs font-semibold shrink-0 ${
+                                    className={`px-2 py-1 rounded-lg border inline-flex items-center gap-1 font-medium ${
                                       slotStatus === 'hadir'
-                                        ? 'bg-teal-600 border-teal-600 text-white'
+                                        ? 'bg-teal-50 dark:bg-teal-950/60 border-teal-200 dark:border-teal-800 text-teal-800 dark:text-teal-300'
                                         : slotStatus === 'tidak_hadir'
-                                        ? 'bg-rose-600 border-rose-600 text-white'
-                                        : 'bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                                        ? 'bg-rose-50 dark:bg-rose-950/60 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300'
+                                        : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400'
                                     }`}
                                   >
-                                    {slotStatus === 'hadir' && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                                    {slotStatus === 'tidak_hadir' && <X className="w-3.5 h-3.5 stroke-[3]" />}
-                                    {slotStatus === 'belum_absen' && (
-                                      <span className="w-2.5 h-2.5 rounded-xs border border-slate-400 dark:border-slate-500 block bg-white dark:bg-slate-900"></span>
-                                    )}
-                                    <span className="font-mono text-[11px]">{shortLabel}</span>
-                                  </button>
+                                    {slotStatus === 'hadir' && <Check className="w-3 h-3 stroke-[3]" />}
+                                    {slotStatus === 'tidak_hadir' && <X className="w-3 h-3 stroke-[3]" />}
+                                    <span className="font-mono">{shortLabel}:</span>
+                                    <span>{slotStatus === 'hadir' ? 'Hadir' : slotStatus === 'tidak_hadir' ? 'Absen' : 'Belum'}</span>
+                                  </span>
                                 );
                               })}
                             </div>
-                          </div>
+                          )}
                         </div>
                       );
                     })}
@@ -934,7 +1098,9 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                           <th className="py-3 px-3.5 w-12 text-center">No</th>
                           <th className="py-3 px-3.5">Nama Guru</th>
                           <th className="py-3 px-3 text-center w-28 whitespace-nowrap">Jadwal Hari Ini</th>
-                          <th className="py-3 px-4 text-center">Presensi (Checkbox per Jam Tahfidz)</th>
+                          <th className="py-3 px-4 text-center">
+                            {canInputAttendance ? 'Presensi (Checkbox per Jam Tahfidz)' : 'Status Kehadiran Tahfidz (Read-Only)'}
+                          </th>
                           <th className="py-3 px-3.5 text-center w-28 whitespace-nowrap">Realisasi</th>
                         </tr>
                       </thead>
@@ -969,50 +1135,79 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                                 </span>
                               </td>
 
-                              {/* Checkbox Sesuai Jumlah Jam Tahfidz Hari Ini */}
+                              {/* Checkbox Interaktif (Jika Login) atau Indikator Status Read-Only (Tamu) */}
                               <td className="py-3 px-4">
-                                <div className="flex flex-wrap items-center justify-center gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSetTeacherSlots(sch.teacherId, 'tahfidz', actualTahfidz === targetTahfidz && targetTahfidz > 0 ? 'belum_absen' : 'hadir')}
-                                    className={`h-9 px-2.5 rounded-xl border flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer text-xs font-semibold shrink-0 ${
-                                      actualTahfidz === targetTahfidz && targetTahfidz > 0
-                                        ? 'bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-200 border-teal-300 dark:border-teal-700 hover:bg-teal-200'
-                                        : 'bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 border-teal-200 dark:border-teal-800 hover:bg-teal-100'
-                                    }`}
-                                    title={actualTahfidz === targetTahfidz && targetTahfidz > 0 ? 'Klik untuk reset' : 'Klik untuk hadirkan semua jam'}
-                                  >
-                                    <Check className="w-3.5 h-3.5 stroke-[3]" />
-                                    <span>{actualTahfidz === targetTahfidz && targetTahfidz > 0 ? 'Hadir Semua' : 'Set Hadir'}</span>
-                                  </button>
-                                  {Array.from({ length: targetTahfidz }).map((_, slotIdx) => {
-                                    const slotStatus = record?.tahfidzSlots?.[slotIdx] || 'belum_absen';
-                                    const slotLabel = getTahfidzSlotLabel(slotIdx, targetTahfidz);
+                                {canInputAttendance ? (
+                                  <div className="flex flex-wrap items-center justify-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSetTeacherSlots(sch.teacherId, 'tahfidz', actualTahfidz === targetTahfidz && targetTahfidz > 0 ? 'belum_absen' : 'hadir')}
+                                      className={`h-9 px-2.5 rounded-xl border flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer text-xs font-semibold shrink-0 ${
+                                        actualTahfidz === targetTahfidz && targetTahfidz > 0
+                                          ? 'bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-200 border-teal-300 dark:border-teal-700 hover:bg-teal-200'
+                                          : 'bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 border-teal-200 dark:border-teal-800 hover:bg-teal-100'
+                                      }`}
+                                      title={actualTahfidz === targetTahfidz && targetTahfidz > 0 ? 'Klik untuk reset' : 'Klik untuk hadirkan semua jam'}
+                                    >
+                                      <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                      <span>{actualTahfidz === targetTahfidz && targetTahfidz > 0 ? 'Hadir Semua' : 'Set Hadir'}</span>
+                                    </button>
+                                    {Array.from({ length: targetTahfidz }).map((_, slotIdx) => {
+                                      const slotStatus = record?.tahfidzSlots?.[slotIdx] || 'belum_absen';
+                                      const slotLabel = getTahfidzSlotLabel(slotIdx, targetTahfidz);
 
-                                    return (
-                                      <button
-                                        key={slotIdx}
-                                        type="button"
-                                        onClick={() => handleToggleSlot(sch.teacherId, 'tahfidz', slotIdx)}
-                                        title={`Tahfidz ${slotLabel}: Klik untuk ubah Kosong -> Centang (Hadir) -> Silang (Tidak Hadir)`}
-                                        className={`min-w-[4.6rem] h-9 px-2.5 rounded-xl border flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer text-xs font-semibold shadow-2xs ${
-                                          slotStatus === 'hadir'
-                                            ? 'bg-teal-600 border-teal-600 text-white hover:bg-teal-700'
-                                            : slotStatus === 'tidak_hadir'
-                                            ? 'bg-rose-600 border-rose-600 text-white hover:bg-rose-700'
-                                            : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-slate-400 dark:hover:border-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'
-                                        }`}
-                                      >
-                                        {slotStatus === 'hadir' && <Check className="w-4 h-4 stroke-[3]" />}
-                                        {slotStatus === 'tidak_hadir' && <X className="w-4 h-4 stroke-[3]" />}
-                                        {slotStatus === 'belum_absen' && (
-                                          <span className="w-3.5 h-3.5 rounded-xs border-2 border-slate-300 dark:border-slate-500 block bg-slate-50 dark:bg-slate-900"></span>
-                                        )}
-                                        <span className="font-mono text-[11px]">{slotLabel}</span>
-                                      </button>
-                                    );
-                                  })}
-                                </div>
+                                      return (
+                                        <button
+                                          key={slotIdx}
+                                          type="button"
+                                          onClick={() => handleToggleSlot(sch.teacherId, 'tahfidz', slotIdx)}
+                                          title={`Tahfidz ${slotLabel}: Klik untuk ubah Kosong -> Centang (Hadir) -> Silang (Tidak Hadir)`}
+                                          className={`min-w-[4.6rem] h-9 px-2.5 rounded-xl border flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer text-xs font-semibold shadow-2xs ${
+                                            slotStatus === 'hadir'
+                                              ? 'bg-teal-600 border-teal-600 text-white hover:bg-teal-700'
+                                              : slotStatus === 'tidak_hadir'
+                                              ? 'bg-rose-600 border-rose-600 text-white hover:bg-rose-700'
+                                              : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-slate-400 dark:hover:border-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'
+                                          }`}
+                                        >
+                                          {slotStatus === 'hadir' && <Check className="w-4 h-4 stroke-[3]" />}
+                                          {slotStatus === 'tidak_hadir' && <X className="w-4 h-4 stroke-[3]" />}
+                                          {slotStatus === 'belum_absen' && (
+                                            <span className="w-3.5 h-3.5 rounded-xs border-2 border-slate-300 dark:border-slate-500 block bg-slate-50 dark:bg-slate-900"></span>
+                                          )}
+                                          <span className="font-mono text-[11px]">{slotLabel}</span>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <div className="flex flex-wrap items-center justify-center gap-2">
+                                    {Array.from({ length: targetTahfidz }).map((_, slotIdx) => {
+                                      const slotStatus = record?.tahfidzSlots?.[slotIdx] || 'belum_absen';
+                                      const slotLabel = getTahfidzSlotLabel(slotIdx, targetTahfidz);
+
+                                      return (
+                                        <span
+                                          key={slotIdx}
+                                          className={`h-8 px-2.5 rounded-lg border inline-flex items-center gap-1.5 text-xs font-medium ${
+                                            slotStatus === 'hadir'
+                                              ? 'bg-teal-50 dark:bg-teal-950/60 border-teal-200 dark:border-teal-800 text-teal-800 dark:text-teal-300'
+                                              : slotStatus === 'tidak_hadir'
+                                              ? 'bg-rose-50 dark:bg-rose-950/60 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300'
+                                              : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400'
+                                          }`}
+                                        >
+                                          {slotStatus === 'hadir' && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                                          {slotStatus === 'tidak_hadir' && <X className="w-3.5 h-3.5 stroke-[3]" />}
+                                          <span className="font-mono text-[11px]">{slotLabel}:</span>
+                                          <span>
+                                            {slotStatus === 'hadir' ? 'Hadir' : slotStatus === 'tidak_hadir' ? 'Tidak Hadir' : 'Belum Absen'}
+                                          </span>
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
+                                )}
                               </td>
 
                               {/* Realisasi Kehadiran */}
@@ -1040,32 +1235,52 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
 
                   {/* Footer Penjamin & Tombol Simpan Presensi Tahfidz */}
                   <div className="p-3.5 sm:p-4 bg-slate-50/90 dark:bg-slate-800/70 border-t border-slate-200/80 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
-                      <span className="w-2 h-2 rounded-full bg-teal-500 shrink-0 animate-pulse"></span>
-                      <span>
-                        Status: <strong className="text-teal-800 dark:text-teal-300">Tersimpan Otomatis</strong>. Setiap centang halaqah tahfidz langsung masuk ke Rekap Bulanan.
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={handleManualSave}
-                        className="px-3.5 py-2 text-xs font-bold rounded-xl bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white active:scale-95 transition cursor-pointer shadow-xs flex items-center gap-1.5"
-                        title="Simpan & pastikan presensi tahfidz tersinkron"
-                      >
-                        <Save className="w-3.5 h-3.5" />
-                        <span>Simpan Presensi</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onNavigateTab('rekap-bulanan')}
-                        className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer shadow-2xs flex items-center gap-1.5"
-                        title={isAdmin ? 'Buka Rekap Bulanan' : 'Perlu Login Admin untuk membuka Rekap Bulanan'}
-                      >
-                        {!isAdmin && <Lock className="w-3.5 h-3.5 text-amber-500" />}
-                        <span>Buka Rekap Bulanan →</span>
-                      </button>
-                    </div>
+                    {canInputAttendance ? (
+                      <>
+                        <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                          <CheckCircle2 className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0" />
+                          <span>
+                            Status: <strong className="text-teal-800 dark:text-teal-300">Tersimpan Otomatis</strong>. Setiap centang halaqah tahfidz langsung tercatat ke database.
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={handleManualSave}
+                            className="px-3.5 py-2 text-xs font-bold rounded-xl bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white active:scale-95 transition cursor-pointer shadow-xs flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                            title="Simpan & pastikan presensi tahfidz tersinkron"
+                          >
+                            <Save className="w-3.5 h-3.5" />
+                            <span>Simpan Presensi</span>
+                          </button>
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => onNavigateTab('rekap-bulanan')}
+                              className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer shadow-2xs flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                              title="Buka Rekap Bulanan"
+                            >
+                              <span>Buka Rekap Bulanan →</span>
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                          <Eye className="w-4 h-4 text-slate-500 shrink-0" />
+                          <span>Mode Baca Saja · Login sebagai Pengisi Absensi atau Admin untuk menginput kehadiran tahfidz.</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={openLoginModal}
+                          className="px-3.5 py-2 text-xs font-bold rounded-xl bg-emerald-700 hover:bg-emerald-800 dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white transition cursor-pointer shadow-2xs flex items-center gap-1.5 whitespace-nowrap shrink-0 self-start sm:self-auto"
+                        >
+                          <LogIn className="w-3.5 h-3.5" />
+                          <span>Login</span>
+                        </button>
+                      </>
+                    )}
                   </div>
                 </>
               )}

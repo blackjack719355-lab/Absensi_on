@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import dotenv from 'dotenv';
 import { Pool } from 'pg';
+import crypto from 'crypto';
 
 // Load .env if present
 dotenv.config();
@@ -54,6 +55,7 @@ interface StoreData {
   schedules: any[];
   holidays: any[];
   attendances: any[];
+  users: any[];
 }
 
 const PERSISTENT_DB_FILE = path.resolve(__dirname, 'absensi_database.json');
@@ -64,6 +66,7 @@ const memoryStore: StoreData = {
   schedules: [],
   holidays: [],
   attendances: [],
+  users: [],
 };
 
 // Auto-save database to disk
@@ -95,6 +98,7 @@ function loadDatabase() {
         memoryStore.schedules = Array.isArray(parsed.schedules) ? parsed.schedules : [];
         memoryStore.holidays = Array.isArray(parsed.holidays) ? parsed.holidays : [];
         memoryStore.attendances = Array.isArray(parsed.attendances) ? parsed.attendances : [];
+        memoryStore.users = Array.isArray(parsed.users) ? parsed.users : [];
         console.log(`[DB Engine] Memuat data permanen: ${memoryStore.teachers.length} guru, ${memoryStore.schedules.length} jadwal, ${memoryStore.attendances.length} presensi.`);
       }
     } catch (e) {
@@ -345,8 +349,28 @@ async function ensureTables(pool: Pool) {
         tahfidz_slots JSONB DEFAULT '[]'::jsonb,
         updated_at TIMESTAMPTZ DEFAULT now()
       );
+      CREATE TABLE IF NOT EXISTS app_users (
+        username TEXT PRIMARY KEY,
+        role TEXT NOT NULL,
+        password_hash TEXT NOT NULL,
+        updated_at TIMESTAMPTZ DEFAULT now()
+      );
     `);
     console.log('[Supabase PG] Skema tabel PostgreSQL berhasil diverifikasi/dibuat.');
+
+    // Sinkronkan akun pengguna lokal yang belum tercatat di PostgreSQL
+    if (Array.isArray(memoryStore.users) && memoryStore.users.length > 0) {
+      for (const u of memoryStore.users) {
+        if (u?.username && u?.role && u?.passwordHash) {
+          await pool.query(
+            `INSERT INTO app_users (username, role, password_hash, updated_at)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (username) DO NOTHING`,
+            [u.username, u.role, u.passwordHash, u.updatedAt || new Date().toISOString()]
+          );
+        }
+      }
+    }
 
     // Seed data awal jika tabel teachers masih kosong (database baru)
     const countCheck = await pool.query('SELECT COUNT(*)::int as count FROM teachers');
@@ -567,21 +591,177 @@ export const app = express();
 
 app.use(express.json({ limit: '10mb' }));
 
-// Middleware normalisasi path & auto-reconnect untuk serverless / cold-start:
-// Memastikan:
-// 1. Path Vercel yang dipotong prefix /api-nya tetap cocok dengan router Express
-// 2. pgPool terhubung sebelum memproses endpoint /api
-app.use(async (req: Request, _res: Response, next) => {
+// ==========================================
+// AUTHENTICATION & RBAC HELPERS
+// ==========================================
+type AuthRole = 'admin' | 'petugas';
+interface AuthUser {
+  username: AuthRole;
+  role: AuthRole;
+}
+interface AuthenticatedRequest extends Request {
+  authUser?: AuthUser | null;
+}
+
+const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
+const TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+
+function getEnvPasscode(role: AuthRole): string {
+  const raw = role === 'admin' ? process.env.ADMIN_PASSCODE : process.env.PETUGAS_PASSCODE;
+  return (raw || '').trim();
+}
+
+function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const derived = crypto.scryptSync(password, salt, 64).toString('hex');
+  return `${salt}:${derived}`;
+}
+
+function verifyPasswordHash(password: string, storedHash: string): boolean {
+  if (!storedHash || !storedHash.includes(':')) return false;
+  const [salt, keyHex] = storedHash.split(':');
+  if (!salt || !keyHex) return false;
+  try {
+    const keyBuf = Buffer.from(keyHex, 'hex');
+    const derivedBuf = crypto.scryptSync(password, salt, 64);
+    if (keyBuf.length !== derivedBuf.length) return false;
+    return crypto.timingSafeEqual(keyBuf, derivedBuf);
+  } catch {
+    return false;
+  }
+}
+
+function constantTimeEquals(a: string, b: string): boolean {
+  const hashA = crypto.createHash('sha256').update(a).digest();
+  const hashB = crypto.createHash('sha256').update(b).digest();
+  return crypto.timingSafeEqual(hashA, hashB);
+}
+
+function signAuthToken(user: AuthUser): string {
+  const payload = {
+    username: user.username,
+    role: user.role,
+    iat: Date.now(),
+    exp: Date.now() + TOKEN_TTL_MS,
+  };
+  const encodedPayload = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+  const sig = crypto.createHmac('sha256', SESSION_SECRET).update(encodedPayload).digest('base64url');
+  return `${encodedPayload}.${sig}`;
+}
+
+function verifyAuthToken(token: string): AuthUser | null {
+  if (!token || !token.includes('.')) return null;
+  const parts = token.split('.');
+  if (parts.length !== 2) return null;
+  const [encodedPayload, sig] = parts;
+  if (!encodedPayload || !sig) return null;
+
+  try {
+    const expectedSig = crypto.createHmac('sha256', SESSION_SECRET).update(encodedPayload).digest('base64url');
+    const sigBuf = Buffer.from(sig);
+    const expectedBuf = Buffer.from(expectedSig);
+    if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
+      return null;
+    }
+    const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8'));
+    if (!payload || typeof payload.exp !== 'number' || payload.exp <= Date.now()) {
+      return null;
+    }
+    if (payload.role !== 'admin' && payload.role !== 'petugas') {
+      return null;
+    }
+    return {
+      username: payload.role,
+      role: payload.role,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function getUserRecord(username: AuthRole): Promise<{ username: AuthRole; role: AuthRole; passwordHash: string; updatedAt: string } | null> {
+  if (pgPool) {
+    try {
+      const result = await pgPool.query(
+        'SELECT username, role, password_hash, updated_at FROM app_users WHERE username = $1 LIMIT 1',
+        [username]
+      );
+      if (result.rows.length > 0) {
+        const row = result.rows[0];
+        return {
+          username: row.username,
+          role: row.role,
+          passwordHash: row.password_hash,
+          updatedAt: row.updated_at || new Date().toISOString(),
+        };
+      }
+    } catch (e: any) {
+      console.warn('[Auth PG] Gagal membaca app_users:', e.message);
+    }
+  }
+  const localUsers = await inMemoryDb.collection('users').find({ username }).toArray();
+  if (localUsers.length > 0) {
+    return localUsers[0];
+  }
+  return null;
+}
+
+async function upsertUserRecord(username: AuthRole, role: AuthRole, passwordHash: string) {
+  const updatedAt = new Date().toISOString();
+  if (pgPool) {
+    await pgPool.query(
+      `INSERT INTO app_users (username, role, password_hash, updated_at)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (username) DO UPDATE SET role = EXCLUDED.role, password_hash = EXCLUDED.password_hash, updated_at = EXCLUDED.updated_at`,
+      [username, role, passwordHash, updatedAt]
+    );
+  }
+  await inMemoryDb.collection('users').updateOne(
+    { username },
+    { $set: { username, role, passwordHash, updatedAt } },
+    { upsert: true }
+  );
+}
+
+function requireRole(allowedRoles: AuthRole[]) {
+  return (req: AuthenticatedRequest, res: Response, next: any) => {
+    if (!req.authUser) {
+      return res.status(401).json({
+        success: false,
+        error: 'Akses ditolak. Silakan login terlebih dahulu.',
+      });
+    }
+    if (!allowedRoles.includes(req.authUser.role)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Anda tidak memiliki hak akses untuk melakukan tindakan ini.',
+      });
+    }
+    next();
+  };
+}
+
+// Middleware normalisasi path, auth token, & auto-reconnect untuk serverless / cold-start
+app.use(async (req: AuthenticatedRequest, _res: Response, next) => {
   // Normalisasi jika Vercel me-rewrite ke /api/index atau memotong awalan /api
   if (req.url.startsWith('/api/index.ts') || req.url.startsWith('/api/index')) {
     req.url = req.url.replace(/^\/api\/index(\.ts)?/, '') || '/';
   }
 
   if (!req.url.startsWith('/api')) {
-    const apiPrefixes = ['/supabase', '/teachers', '/schedules', '/holidays', '/attendance', '/data'];
+    const apiPrefixes = ['/auth', '/supabase', '/teachers', '/schedules', '/holidays', '/attendance', '/data'];
     if (apiPrefixes.some(prefix => req.url.startsWith(prefix))) {
       req.url = '/api' + req.url;
     }
+  }
+
+  // Parse Authorization: Bearer <token>
+  const authHeader = req.headers.authorization;
+  if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.slice(7).trim();
+    req.authUser = verifyAuthToken(token);
+  } else {
+    req.authUser = null;
   }
 
   // Jika request mengarah ke API, pastikan koneksi PostgreSQL telah siap
@@ -595,6 +775,188 @@ app.use(async (req: Request, _res: Response, next) => {
     }
   }
   next();
+});
+
+// ==========================================
+// API ROUTES: AUTHENTICATION & ROLE CONTROL
+// ==========================================
+
+app.get('/api/auth/status', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const envAdminPass = getEnvPasscode('admin');
+    const envPetugasPass = getEnvPasscode('petugas');
+    const adminRec = await getUserRecord('admin');
+    const petugasRec = await getUserRecord('petugas');
+
+    const needsAdminSetup = !envAdminPass && !adminRec;
+    const hasPetugasAccount = Boolean(envPetugasPass || petugasRec);
+
+    res.json({
+      needsAdminSetup,
+      hasPetugasAccount,
+      envOverrides: {
+        admin: Boolean(envAdminPass),
+        petugas: Boolean(envPetugasPass),
+      },
+      session: req.authUser
+        ? {
+            authenticated: true,
+            username: req.authUser.username,
+            role: req.authUser.role,
+          }
+        : null,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Gagal memeriksa status autentikasi.' });
+  }
+});
+
+// One-time bootstrap endpoint for first-run admin (+ optional petugas) setup when env passcode is unset
+app.post('/api/auth/setup', async (req: Request, res: Response) => {
+  try {
+    const envAdminPass = getEnvPasscode('admin');
+    const existingAdmin = await getUserRecord('admin');
+
+    if (envAdminPass || existingAdmin) {
+      return res.status(409).json({
+        success: false,
+        error: 'Akun administrator sudah diaktifkan sebelumnya. Silakan gunakan form login.',
+      });
+    }
+
+    const adminPassword = typeof req.body?.adminPassword === 'string' ? req.body.adminPassword.trim() : '';
+    const petugasPassword = typeof req.body?.petugasPassword === 'string' ? req.body.petugasPassword.trim() : '';
+
+    if (adminPassword.length < 4) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password admin minimal 4 karakter.',
+      });
+    }
+    if (petugasPassword && petugasPassword.length < 4) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password pengisi absensi minimal 4 karakter.',
+      });
+    }
+
+    await upsertUserRecord('admin', 'admin', hashPassword(adminPassword));
+    if (petugasPassword && !getEnvPasscode('petugas')) {
+      await upsertUserRecord('petugas', 'petugas', hashPassword(petugasPassword));
+    }
+
+    const user: AuthUser = { username: 'admin', role: 'admin' };
+    const token = signAuthToken(user);
+
+    res.json({
+      success: true,
+      token,
+      user,
+      hasPetugasAccount: Boolean(getEnvPasscode('petugas') || petugasPassword || (await getUserRecord('petugas'))),
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message || 'Gagal melakukan aktivasi awal akun.' });
+  }
+});
+
+app.post('/api/auth/login', async (req: Request, res: Response) => {
+  try {
+    const rawUsername = typeof req.body?.username === 'string' ? req.body.username.trim().toLowerCase() : '';
+    const password = typeof req.body?.password === 'string' ? req.body.password.trim() : '';
+
+    if (rawUsername !== 'admin' && rawUsername !== 'petugas') {
+      return res.status(401).json({
+        success: false,
+        error: 'Username tidak valid. Gunakan "admin" atau "petugas".',
+      });
+    }
+
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password wajib diisi.',
+      });
+    }
+
+    const role: AuthRole = rawUsername;
+    const envPass = getEnvPasscode(role);
+
+    if (envPass) {
+      if (!constantTimeEquals(password, envPass)) {
+        return res.status(401).json({
+          success: false,
+          error: `Password ${role === 'admin' ? 'Admin' : 'Pengisi Absensi'} salah.`,
+        });
+      }
+      const user: AuthUser = { username: role, role };
+      return res.json({ success: true, token: signAuthToken(user), user });
+    }
+
+    const userRec = await getUserRecord(role);
+    if (!userRec) {
+      const msg =
+        role === 'admin'
+          ? 'Akun Admin belum diaktifkan. Silakan selesaikan aktivasi awal terlebih dahulu.'
+          : 'Akun Pengisi Absensi belum diaktifkan oleh Admin. Hubungi Admin untuk mengatur password petugas.';
+      return res.status(401).json({ success: false, error: msg });
+    }
+
+    if (!verifyPasswordHash(password, userRec.passwordHash)) {
+      return res.status(401).json({
+        success: false,
+        error: `Username atau password ${role === 'admin' ? 'Admin' : 'Pengisi Absensi'} salah.`,
+      });
+    }
+
+    const user: AuthUser = { username: role, role };
+    res.json({ success: true, token: signAuthToken(user), user });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message || 'Gagal memproses login.' });
+  }
+});
+
+app.post('/api/auth/change-password', requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const targetUsername = typeof req.body?.targetUsername === 'string'
+      ? req.body.targetUsername.trim().toLowerCase()
+      : 'admin';
+    const oldPassword = typeof req.body?.oldPassword === 'string' ? req.body.oldPassword.trim() : '';
+    const newPassword = typeof req.body?.newPassword === 'string' ? req.body.newPassword.trim() : '';
+
+    if (targetUsername !== 'admin' && targetUsername !== 'petugas') {
+      return res.status(400).json({ success: false, error: 'Akun target tidak valid.' });
+    }
+    if (newPassword.length < 4) {
+      return res.status(400).json({ success: false, error: 'Password baru minimal 4 karakter.' });
+    }
+
+    const targetRole: AuthRole = targetUsername;
+    if (getEnvPasscode(targetRole)) {
+      const envKey = targetRole === 'admin' ? 'ADMIN_PASSCODE' : 'PETUGAS_PASSCODE';
+      return res.status(400).json({
+        success: false,
+        error: `Password ${targetRole} dikelola oleh environment variable ${envKey} pada server.`,
+      });
+    }
+
+    if (targetRole === 'admin') {
+      const adminRec = await getUserRecord('admin');
+      if (!adminRec || !verifyPasswordHash(oldPassword, adminRec.passwordHash)) {
+        return res.status(400).json({ success: false, error: 'Password lama admin salah.' });
+      }
+    }
+
+    await upsertUserRecord(targetRole, targetRole, hashPassword(newPassword));
+    res.json({
+      success: true,
+      message:
+        targetRole === 'petugas'
+          ? 'Password Pengisi Absensi (petugas) berhasil diperbarui!'
+          : 'Password Admin berhasil diubah!',
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message || 'Gagal memperbarui password.' });
+  }
 });
 
 // ==========================================
@@ -649,7 +1011,7 @@ app.use(async (req: Request, _res: Response, next) => {
   });
 
   // Connect or Test connection with user-provided connection string
-  app.post('/api/supabase/connect', async (req: Request, res: Response) => {
+  app.post('/api/supabase/connect', requireRole(['admin']), async (req: Request, res: Response) => {
     let { connectionString, url, anonKey } = req.body;
     let targetConn = connectionString;
 
@@ -687,7 +1049,7 @@ app.use(async (req: Request, _res: Response, next) => {
   });
 
   // Disconnect from Supabase
-  app.post('/api/supabase/disconnect', async (req: Request, res: Response) => {
+  app.post('/api/supabase/disconnect', requireRole(['admin']), async (req: Request, res: Response) => {
     if (pgPool) {
       try {
         await pgPool.end();
@@ -807,7 +1169,7 @@ app.use(async (req: Request, _res: Response, next) => {
   });
 
   // BATCH SYNC: Upload full dataset from client to Supabase PostgreSQL
-  app.post('/api/data/sync', async (req: Request, res: Response) => {
+  app.post('/api/data/sync', requireRole(['admin']), async (req: Request, res: Response) => {
     const { teachers, schedules, holidays, attendances } = req.body;
 
     try {
@@ -957,7 +1319,7 @@ app.use(async (req: Request, _res: Response, next) => {
   });
 
   // CRUD TEACHERS
-  app.post('/api/teachers', async (req: Request, res: Response) => {
+  app.post('/api/teachers', requireRole(['admin']), async (req: Request, res: Response) => {
     const teacher = req.body;
     if (!teacher || !teacher.id) return res.status(400).json({ error: 'Data guru tidak valid' });
 
@@ -977,7 +1339,7 @@ app.use(async (req: Request, _res: Response, next) => {
     }
   });
 
-  app.delete('/api/teachers/:id', async (req: Request, res: Response) => {
+  app.delete('/api/teachers/:id', requireRole(['admin']), async (req: Request, res: Response) => {
     const { id } = req.params;
     try {
       if (pgPool) {
@@ -993,7 +1355,7 @@ app.use(async (req: Request, _res: Response, next) => {
   });
 
   // CRUD SCHEDULES
-  app.post('/api/schedules', async (req: Request, res: Response) => {
+  app.post('/api/schedules', requireRole(['admin']), async (req: Request, res: Response) => {
     const schedule = req.body;
     if (!schedule || !schedule.teacherId) return res.status(400).json({ error: 'Data jadwal tidak valid' });
 
@@ -1038,7 +1400,7 @@ app.use(async (req: Request, _res: Response, next) => {
   });
 
   // CRUD HOLIDAYS
-  app.post('/api/holidays', async (req: Request, res: Response) => {
+  app.post('/api/holidays', requireRole(['admin']), async (req: Request, res: Response) => {
     const holiday = req.body;
     if (!holiday || !holiday.id) return res.status(400).json({ error: 'Data hari libur tidak valid' });
 
@@ -1070,7 +1432,7 @@ app.use(async (req: Request, _res: Response, next) => {
     }
   });
 
-  app.delete('/api/holidays/:id', async (req: Request, res: Response) => {
+  app.delete('/api/holidays/:id', requireRole(['admin']), async (req: Request, res: Response) => {
     const { id } = req.params;
     try {
       if (pgPool) {
@@ -1083,8 +1445,8 @@ app.use(async (req: Request, _res: Response, next) => {
     }
   });
 
-  // CRUD ATTENDANCES
-  app.post('/api/attendance', async (req: Request, res: Response) => {
+  // CRUD ATTENDANCES (Petugas Pengisi Absensi & Admin)
+  app.post('/api/attendance', requireRole(['admin', 'petugas']), async (req: Request, res: Response) => {
     const record = req.body;
     if (!record || !record.id) return res.status(400).json({ error: 'Data presensi tidak valid' });
 
@@ -1131,7 +1493,7 @@ app.use(async (req: Request, _res: Response, next) => {
     }
   });
 
-  app.post('/api/attendance/batch', async (req: Request, res: Response) => {
+  app.post('/api/attendance/batch', requireRole(['admin', 'petugas']), async (req: Request, res: Response) => {
     const { records } = req.body;
     if (!Array.isArray(records)) return res.status(400).json({ error: 'Records must be array' });
 
@@ -1183,8 +1545,8 @@ app.use(async (req: Request, _res: Response, next) => {
     }
   });
 
-  // Hapus seluruh presensi (reset murni ke 0)
-  app.post('/api/attendance/clear', async (req: Request, res: Response) => {
+  // Hapus seluruh presensi (reset murni ke 0 - khusus Admin)
+  app.post('/api/attendance/clear', requireRole(['admin']), async (req: Request, res: Response) => {
     try {
       if (pgPool) {
         await pgPool.query('DELETE FROM attendances');
@@ -1196,7 +1558,7 @@ app.use(async (req: Request, _res: Response, next) => {
     }
   });
 
-  app.delete('/api/attendance', async (req: Request, res: Response) => {
+  app.delete('/api/attendance', requireRole(['admin']), async (req: Request, res: Response) => {
     try {
       if (pgPool) {
         await pgPool.query('DELETE FROM attendances');

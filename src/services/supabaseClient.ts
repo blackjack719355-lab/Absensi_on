@@ -80,6 +80,14 @@ CREATE TABLE IF NOT EXISTS public.attendances (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- 5. TABEL AKUN PENGGUNA & HAK AKSES (app_users)
+CREATE TABLE IF NOT EXISTS public.app_users (
+  username TEXT PRIMARY KEY,
+  role TEXT NOT NULL,
+  password_hash TEXT NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- AKTIFKAN ROW LEVEL SECURITY (RLS)
 ALTER TABLE public.teachers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.schedules ENABLE ROW LEVEL SECURITY;

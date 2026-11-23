@@ -271,6 +271,8 @@ class StorageRepository {
   private attendances: DailyAttendanceRecord[] = [];
   private listeners: Array<() => void> = [];
   private autoSyncOnLaunch: boolean = true;
+  private authToken: string | null = null;
+  private authRole: 'guest' | 'petugas' | 'admin' = 'guest';
   private supabaseConfig: SupabaseConfig = {
     url: '',
     anonKey: '',
@@ -283,6 +285,22 @@ class StorageRepository {
 
   constructor() {
     this.init();
+  }
+
+  public setAuthSession(token: string | null, role: 'guest' | 'petugas' | 'admin') {
+    this.authToken = token;
+    this.authRole = role;
+  }
+
+  private getAuthHeaders(includeJsonContentType = true): Record<string, string> {
+    const headers: Record<string, string> = {};
+    if (includeJsonContentType) {
+      headers['Content-Type'] = 'application/json';
+    }
+    if (this.authToken) {
+      headers['Authorization'] = `Bearer ${this.authToken}`;
+    }
+    return headers;
   }
 
   public subscribe(listener: () => void): () => void {
@@ -416,9 +434,9 @@ class StorageRepository {
                             (statusData.counts?.schedules || 0) + 
                             (statusData.counts?.holidays || 0);
 
-          if (totalDocs === 0) {
+          if (totalDocs === 0 && this.authRole === 'admin') {
             // Jika database Supabase benar-benar baru dibuat dan masih 0 dokumen sama sekali,
-            // kirimkan dataset awal guru & jadwal ke Supabase
+            // kirimkan dataset awal guru & jadwal ke Supabase (khusus Admin)
             await this.pushAllToSupabase();
           } else {
             // Ambil seluruh data terbaru dari Supabase ke memori aplikasi
@@ -471,9 +489,9 @@ class StorageRepository {
                   this.attendances = Array.from(attMap.values());
                   this.saveAttendancesLocally();
 
-                  // Jika ada data presensi lokal baru yang belum masuk server, upload ke server
+                  // Jika ada data presensi lokal baru yang belum masuk server, upload ke server (saat sudah login)
                   const unpushed = this.attendances.filter(a => !serverAtts.some((s: any) => s.id === a.id));
-                  if (unpushed.length > 0) {
+                  if (unpushed.length > 0 && (this.authRole === 'admin' || this.authRole === 'petugas')) {
                     const cleanUnpushed = unpushed.map((a: any) => {
                       const { _id, ...clean } = a;
                       return clean;
@@ -520,7 +538,7 @@ class StorageRepository {
       try {
         const res = await fetch('/api/supabase/connect', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: this.getAuthHeaders(true),
           body: JSON.stringify(payload),
         });
 
@@ -599,7 +617,10 @@ class StorageRepository {
   // Putuskan koneksi Supabase
   public async disconnectSupabase(): Promise<{ success: boolean }> {
     try {
-      await fetch('/api/supabase/disconnect', { method: 'POST' });
+      await fetch('/api/supabase/disconnect', {
+        method: 'POST',
+        headers: this.getAuthHeaders(false),
+      });
     } catch {}
     this.supabaseConfig = {
       ...this.supabaseConfig,
@@ -616,7 +637,7 @@ class StorageRepository {
     try {
       const res = await fetch('/api/data/sync', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: this.getAuthHeaders(true),
         body: JSON.stringify({
           teachers: this.teachers,
           schedules: this.schedules,
@@ -656,16 +677,21 @@ class StorageRepository {
 
   // Helper background POST ke API tanpa memblokir UI
   private apiPost(endpoint: string, body: any) {
+    if (!this.authToken) return;
     fetch(`/api${endpoint}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: this.getAuthHeaders(true),
       body: JSON.stringify(body),
     }).catch(() => {});
   }
 
   // Helper background DELETE ke API tanpa memblokir UI
   private apiDelete(endpoint: string) {
-    fetch(`/api${endpoint}`, { method: 'DELETE' }).catch(() => {});
+    if (!this.authToken) return;
+    fetch(`/api${endpoint}`, {
+      method: 'DELETE',
+      headers: this.getAuthHeaders(false),
+    }).catch(() => {});
   }
 
   private saveTeachers() {
@@ -929,9 +955,12 @@ class StorageRepository {
   // Bersihkan seluruh data presensi (reset murni ke 0 untuk semua guru)
   public async clearAllAttendances(): Promise<boolean> {
     this.attendances = [];
-    this.saveAttendances();
+    this.saveAttendancesLocally();
     try {
-      await fetch('/api/attendance/clear', { method: 'POST' });
+      await fetch('/api/attendance/clear', {
+        method: 'POST',
+        headers: this.getAuthHeaders(false),
+      });
     } catch {}
     this.notifyListeners();
     return true;

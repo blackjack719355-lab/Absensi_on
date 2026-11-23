@@ -178,10 +178,7 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
 
   const handleClearAttendances = async () => {
     setShowClearAttendanceConfirm(false);
-    try {
-      await fetch('/api/attendance/clear', { method: 'POST' });
-    } catch {}
-    storage.resetAllAttendances();
+    await storage.clearAllAttendances();
     onRefreshData();
     setSyncStatus('Seluruh data presensi telah dikosongkan.');
     setTimeout(() => setSyncStatus(null), 4000);
