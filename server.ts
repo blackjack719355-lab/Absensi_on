@@ -1,5 +1,6 @@
 import express from 'express';
 import type { Request, Response } from 'express';
+import http from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -1597,6 +1598,8 @@ app.post('/api/auth/change-password', requireRole(['admin']), async (req: Authen
     const distPath = path.resolve(__dirname, 'dist');
     const hasDist = fs.existsSync(path.resolve(distPath, 'index.html'));
 
+    const httpServer = http.createServer(app);
+
     if (hasDist && isExplicitProd) {
       console.log('[absensi-on] Menjalankan dalam mode produksi (Static dist)');
       app.use(express.static(distPath));
@@ -1607,7 +1610,11 @@ app.post('/api/auth/change-password', requireRole(['admin']), async (req: Authen
       console.log('[absensi-on] Menjalankan dalam mode development (Vite middleware)');
       const { createServer: createViteServer } = await import('vite');
       const vite = await createViteServer({
-        server: { middlewareMode: true },
+        server: {
+          middlewareMode: true,
+          hmr: false,
+          ws: false,
+        },
         appType: 'spa',
       });
       app.use(vite.middlewares);
@@ -1630,7 +1637,7 @@ app.post('/api/auth/change-password', requireRole(['admin']), async (req: Authen
     });
 
     if (!process.env.VERCEL) {
-      app.listen(PORT, '0.0.0.0', () => {
+      httpServer.listen(PORT, '0.0.0.0', () => {
         console.log(`[absensi-on] Fullstack Server berjalan pada http://0.0.0.0:${PORT}`);
       });
     }

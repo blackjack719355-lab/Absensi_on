@@ -29,25 +29,17 @@ export const AdminLoginModal: React.FC = () => {
     changePassword,
   } = useAuth();
 
-  // Login Form State
+  // Unified 2-Field Login / Initial Activation State
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // First-Run Setup State
-  const [setupAdminPass, setSetupAdminPass] = useState('');
-  const [setupAdminConfirm, setSetupAdminConfirm] = useState('');
-  const [setupPetugasPass, setSetupPetugasPass] = useState('');
-  const [showSetupAdminPass, setShowSetupAdminPass] = useState(false);
-  const [showSetupPetugasPass, setShowSetupPetugasPass] = useState(false);
-
   // Change Password Form State (Admin only)
   const [targetAccount, setTargetAccount] = useState<'petugas' | 'admin'>('petugas');
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [changeError, setChangeError] = useState<string | null>(null);
   const [changeSuccess, setChangeSuccess] = useState<string | null>(null);
@@ -56,10 +48,11 @@ export const AdminLoginModal: React.FC = () => {
   useEffect(() => {
     if (isLoginModalOpen) {
       setErrorMsg(null);
-      setUsername('');
+      setUsername(needsAdminSetup ? 'admin' : '');
       setPassword('');
+      setShowPassword(false);
     }
-  }, [isLoginModalOpen]);
+  }, [isLoginModalOpen, needsAdminSetup]);
 
   useEffect(() => {
     if (isChangePasswordModalOpen) {
@@ -67,52 +60,52 @@ export const AdminLoginModal: React.FC = () => {
       setChangeSuccess(null);
       setOldPassword('');
       setNewPassword('');
-      setConfirmPassword('');
+      setShowNewPassword(false);
     }
   }, [isChangePasswordModalOpen, targetAccount]);
 
   if (!isLoginModalOpen && !isChangePasswordModalOpen) return null;
 
-  const handleLoginSubmit = async (e: React.FormEvent) => {
+  const handleSubmitAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
-    setIsLoading(true);
 
-    const res = await login(username, password);
+    const cleanUsername = username.trim().toLowerCase();
+    const cleanPassword = password.trim();
+
+    if (!cleanUsername) {
+      setErrorMsg('Username wajib diisi (admin atau petugas).');
+      return;
+    }
+
+    if (needsAdminSetup) {
+      if (cleanUsername !== 'admin') {
+        setErrorMsg('Sistem belum diaktifkan. Gunakan username "admin" dan buat password baru terlebih dahulu.');
+        return;
+      }
+      if (cleanPassword.length < 4) {
+        setErrorMsg('Password Admin minimal 4 karakter.');
+        return;
+      }
+
+      setIsLoading(true);
+      const res = await setupInitialAccounts(cleanPassword);
+      setIsLoading(false);
+      if (!res.success) {
+        setErrorMsg(res.error || 'Gagal mengaktifkan akun admin.');
+      } else {
+        setPassword('');
+      }
+      return;
+    }
+
+    setIsLoading(true);
+    const res = await login(cleanUsername, cleanPassword);
     setIsLoading(false);
     if (!res.success) {
       setErrorMsg(res.error || 'Username atau password salah.');
     } else {
       setPassword('');
-    }
-  };
-
-  const handleSetupSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg(null);
-
-    if (setupAdminPass.trim().length < 4) {
-      setErrorMsg('Password Admin minimal 4 karakter.');
-      return;
-    }
-    if (setupAdminPass.trim() !== setupAdminConfirm.trim()) {
-      setErrorMsg('Konfirmasi password Admin tidak cocok.');
-      return;
-    }
-    if (setupPetugasPass.trim() && setupPetugasPass.trim().length < 4) {
-      setErrorMsg('Password Pengisi Absensi minimal 4 karakter jika diisi.');
-      return;
-    }
-
-    setIsLoading(true);
-    const res = await setupInitialAccounts(setupAdminPass, setupPetugasPass);
-    setIsLoading(false);
-    if (!res.success) {
-      setErrorMsg(res.error || 'Gagal melakukan aktivasi awal akun.');
-    } else {
-      setSetupAdminPass('');
-      setSetupAdminConfirm('');
-      setSetupPetugasPass('');
     }
   };
 
@@ -125,10 +118,6 @@ export const AdminLoginModal: React.FC = () => {
       setChangeError('Password baru minimal 4 karakter.');
       return;
     }
-    if (newPassword.trim() !== confirmPassword.trim()) {
-      setChangeError('Konfirmasi password baru tidak cocok.');
-      return;
-    }
 
     setIsSavingPassword(true);
     const res = await changePassword(targetAccount, oldPassword, newPassword);
@@ -138,7 +127,6 @@ export const AdminLoginModal: React.FC = () => {
       setChangeSuccess(res.message || 'Password berhasil diperbarui!');
       setOldPassword('');
       setNewPassword('');
-      setConfirmPassword('');
     } else {
       setChangeError(res.error || 'Gagal mengubah password.');
     }
@@ -148,18 +136,22 @@ export const AdminLoginModal: React.FC = () => {
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150">
       <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-md w-full border border-slate-200 dark:border-slate-800 overflow-hidden my-auto">
 
-        {/* MODAL 1A: AKTIVASI AWAL AKUN (JIKA BELUM ADA ADMIN DI SERVER) */}
-        {isLoginModalOpen && !isChangePasswordModalOpen && needsAdminSetup && (
+        {/* MODAL 1: LOGIN TERPADU (HANYA KOLOM USERNAME & PASSWORD) */}
+        {isLoginModalOpen && !isChangePasswordModalOpen && (
           <div>
             <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-emerald-800 text-white">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-emerald-100 border border-white/15">
-                  <ShieldCheck className="w-5 h-5" />
+                  {needsAdminSetup ? <ShieldCheck className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
                 </div>
                 <div>
-                  <h3 className="text-base font-bold tracking-tight">Aktivasi Awal Akun</h3>
+                  <h3 className="text-base font-bold tracking-tight">
+                    {needsAdminSetup ? 'Aktivasi & Login Admin' : 'Login Sistem Absensi'}
+                  </h3>
                   <p className="text-xs text-emerald-100/90 font-medium">
-                    Tetapkan kata sandi Admin &amp; Pengisi Absensi
+                    {needsAdminSetup
+                      ? 'Buat password admin untuk mulai menggunakan sistem'
+                      : 'Masukkan username & password akun Anda'}
                   </p>
                 </div>
               </div>
@@ -173,131 +165,18 @@ export const AdminLoginModal: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSetupSubmit} className="p-5 sm:p-6 space-y-4 text-xs sm:text-sm">
-              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                Sistem belum memiliki kata sandi tersimpan. Buat kata sandi akun <strong className="text-slate-900 dark:text-white">admin</strong> (akses penuh) dan akun <strong className="text-slate-900 dark:text-white">petugas</strong> (khusus pengisi absensi di Beranda).
-              </p>
-
-              {errorMsg && (
-                <div className="p-3 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900/60 text-rose-800 dark:text-rose-200 text-xs rounded-xl flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
-                  <span>{errorMsg}</span>
-                </div>
+            <form onSubmit={handleSubmitAuth} className="p-5 sm:p-6 space-y-4 text-xs sm:text-sm">
+              {needsAdminSetup ? (
+                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                  Aktivasi awal: isi <strong className="text-slate-900 dark:text-white">username admin</strong> dan buat password baru Anda (minimal 4 karakter). Password petugas dapat diatur setelah masuk melalui menu Admin.
+                </p>
+              ) : (
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                  Gunakan username <strong className="text-slate-700 dark:text-slate-200">petugas</strong> untuk mengisi absensi di Beranda, atau <strong className="text-slate-700 dark:text-slate-200">admin</strong> untuk akses penuh seluruh menu.
+                </p>
               )}
 
-              <div>
-                <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1 text-xs">
-                  Password Administrator (Username: admin)
-                </label>
-                <div className="relative">
-                  <input
-                    type={showSetupAdminPass ? 'text' : 'password'}
-                    required
-                    value={setupAdminPass}
-                    onChange={(e) => setSetupAdminPass(e.target.value)}
-                    placeholder="Minimal 4 karakter"
-                    className="w-full px-3 pr-10 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowSetupAdminPass(!showSetupAdminPass)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
-                  >
-                    {showSetupAdminPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1 text-xs">
-                  Ulangi Password Administrator
-                </label>
-                <input
-                  type="password"
-                  required
-                  value={setupAdminConfirm}
-                  onChange={(e) => setSetupAdminConfirm(e.target.value)}
-                  placeholder="Ketik ulang password admin"
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
-
-              {!envOverrides.petugas && (
-                <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
-                  <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1 text-xs">
-                    Password Pengisi Absensi (Username: petugas)
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showSetupPetugasPass ? 'text' : 'password'}
-                      value={setupPetugasPass}
-                      onChange={(e) => setSetupPetugasPass(e.target.value)}
-                      placeholder="Opsional, dapat diatur nanti oleh Admin"
-                      className="w-full px-3 pr-10 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowSetupPetugasPass(!showSetupPetugasPass)}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
-                    >
-                      {showSetupPetugasPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <div className="pt-2 flex items-center justify-end gap-2.5">
-                <button
-                  type="button"
-                  onClick={closeLoginModal}
-                  className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition cursor-pointer whitespace-nowrap shrink-0"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 dark:bg-emerald-600 dark:hover:bg-emerald-500 transition shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 whitespace-nowrap shrink-0"
-                >
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>{isLoading ? 'Mengaktifkan...' : 'Aktifkan & Masuk'}</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        {/* MODAL 1B: FORM LOGIN TERPADU (PETUGAS & ADMINISTRATOR) */}
-        {isLoginModalOpen && !isChangePasswordModalOpen && !needsAdminSetup && (
-          <div>
-            <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-emerald-800 text-white">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-emerald-100 border border-white/15">
-                  <Lock className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold tracking-tight">Login Sistem Absensi</h3>
-                  <p className="text-xs text-emerald-100/90 font-medium">
-                    Masukkan username &amp; password akun Anda
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={closeLoginModal}
-                className="p-1.5 text-emerald-100 hover:text-white rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
-                title="Tutup"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleLoginSubmit} className="p-5 sm:p-6 space-y-4 text-xs sm:text-sm">
-              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                Gunakan username <strong className="text-slate-700 dark:text-slate-200">petugas</strong> untuk mengisi absensi di Beranda, atau <strong className="text-slate-700 dark:text-slate-200">admin</strong> untuk akses penuh seluruh menu.
-              </p>
-
-              {username.trim().toLowerCase() === 'petugas' && !hasPetugasAccount && (
+              {!needsAdminSetup && username.trim().toLowerCase() === 'petugas' && !hasPetugasAccount && (
                 <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2">
                   <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                   <span>
@@ -313,7 +192,7 @@ export const AdminLoginModal: React.FC = () => {
                 </div>
               )}
 
-              {/* Username Field */}
+              {/* Kolom 1: Username */}
               <div>
                 <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1 text-xs">
                   Username
@@ -325,17 +204,17 @@ export const AdminLoginModal: React.FC = () => {
                   <input
                     type="text"
                     required
-                    autoFocus
+                    autoFocus={!needsAdminSetup}
                     autoComplete="username"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Masukkan username (petugas atau admin)"
+                    placeholder={needsAdminSetup ? 'admin' : 'Masukkan username (petugas atau admin)'}
                     className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
               </div>
 
-              {/* Password Field */}
+              {/* Kolom 2: Password */}
               <div>
                 <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1 text-xs">
                   Password
@@ -347,10 +226,11 @@ export const AdminLoginModal: React.FC = () => {
                   <input
                     type={showPassword ? 'text' : 'password'}
                     required
-                    autoComplete="current-password"
+                    autoFocus={needsAdminSetup}
+                    autoComplete={needsAdminSetup ? 'new-password' : 'current-password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Masukkan password"
+                    placeholder={needsAdminSetup ? 'Buat password baru (min. 4 karakter)' : 'Masukkan password'}
                     className="w-full pl-9 pr-10 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                   <button
@@ -377,8 +257,16 @@ export const AdminLoginModal: React.FC = () => {
                   disabled={isLoading}
                   className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 dark:bg-emerald-600 dark:hover:bg-emerald-500 transition shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 whitespace-nowrap shrink-0"
                 >
-                  <LogIn className="w-4 h-4" />
-                  <span>{isLoading ? 'Memverifikasi...' : 'Masuk Sekarang'}</span>
+                  {needsAdminSetup ? <ShieldCheck className="w-4 h-4" /> : <LogIn className="w-4 h-4" />}
+                  <span>
+                    {isLoading
+                      ? needsAdminSetup
+                        ? 'Mengaktifkan...'
+                        : 'Memverifikasi...'
+                      : needsAdminSetup
+                      ? 'Simpan & Masuk'
+                      : 'Masuk Sekarang'}
+                  </span>
                 </button>
               </div>
             </form>
@@ -498,7 +386,7 @@ export const AdminLoginModal: React.FC = () => {
 
                   <div>
                     <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1 text-xs">
-                      {targetAccount === 'petugas' ? 'Password Baru Pengisi Absensi' : 'Password Baru Admin'}
+                      {targetAccount === 'petugas' ? 'Password Baru (Username: petugas)' : 'Password Baru (Username: admin)'}
                     </label>
                     <div className="relative">
                       <input
@@ -517,20 +405,6 @@ export const AdminLoginModal: React.FC = () => {
                         {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1 text-xs">
-                      Ulangi Password Baru
-                    </label>
-                    <input
-                      type="password"
-                      required
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="Ketik ulang password baru"
-                      className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    />
                   </div>
                 </>
               )}
